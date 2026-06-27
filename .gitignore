@@ -19,6 +19,7 @@ build/
 *.dep
 
 # Keil user-local files
+RTE/
 *.uvguix.*
 *.uvgui.*
 *.uvgui_*

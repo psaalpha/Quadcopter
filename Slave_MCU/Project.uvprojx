@@ -10,14 +10,14 @@
       <TargetName>Target 1</TargetName>
       <ToolsetNumber>0x4</ToolsetNumber>
       <ToolsetName>ARM-ADS</ToolsetName>
-      <pCCUsed>5060528::V5.06 update 5 (build 528)::ARMCC</pCCUsed>
+      <pCCUsed>5060960::V5.06 update 7 (build 960)::.\ARMCC</pCCUsed>
       <uAC6>0</uAC6>
       <TargetOption>
         <TargetCommonOption>
           <Device>STM32F103C8</Device>
           <Vendor>STMicroelectronics</Vendor>
-          <PackID>Keil.STM32F1xx_DFP.2.4.0</PackID>
-          <PackURL>http://www.keil.com/pack/</PackURL>
+          <PackID>Keil.STM32F1xx_DFP.2.4.1</PackID>
+          <PackURL>https://www.keil.com/pack/</PackURL>
           <Cpu>IRAM(0x20000000,0x5000) IROM(0x08000000,0x10000) CPUTYPE("Cortex-M3") CLOCK(12000000) ELITTLE</Cpu>
           <FlashUtilSpec></FlashUtilSpec>
           <StartupFile></StartupFile>
@@ -133,7 +133,7 @@
             <UseExternalTool>0</UseExternalTool>
             <RunIndependent>0</RunIndependent>
             <UpdateFlashBeforeDebugging>1</UpdateFlashBeforeDebugging>
-            <Capability>0</Capability>
+            <Capability>1</Capability>
             <DriverSelection>-1</DriverSelection>
           </Flash1>
           <bUseTDR>1</bUseTDR>
@@ -184,6 +184,9 @@
             <hadXRAM>0</hadXRAM>
             <uocXRam>0</uocXRam>
             <RvdsVP>0</RvdsVP>
+            <RvdsMve>0</RvdsMve>
+            <RvdsCdeCp>0</RvdsCdeCp>
+            <nBranchProt>0</nBranchProt>
             <hadIRAM2>0</hadIRAM2>
             <hadIROM2>0</hadIROM2>
             <StupSel>8</StupSel>
@@ -324,6 +327,7 @@
             <uThumb>0</uThumb>
             <uSurpInc>0</uSurpInc>
             <uC99>1</uC99>
+            <uGnu>0</uGnu>
             <useXO>0</useXO>
             <v6Lang>1</v6Lang>
             <v6LangP>1</v6LangP>
@@ -349,7 +353,7 @@
             <NoWarn>0</NoWarn>
             <uSurpInc>0</uSurpInc>
             <useXO>0</useXO>
-            <uClangAs>0</uClangAs>
+            <ClangAsOpt>4</ClangAsOpt>
             <VariousControls>
               <MiscControls></MiscControls>
               <Define></Define>
@@ -683,77 +687,77 @@
             <File>
               <FileName>AT7456E.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Slave_MCU\Slave_MCU\Hardware\AT7456E.c</FilePath>
+              <FilePath>.\Hardware\AT7456E.c</FilePath>
             </File>
             <File>
               <FileName>AT7456E.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\Slave_MCU\Slave_MCU\Hardware\AT7456E.h</FilePath>
+              <FilePath>.\Hardware\AT7456E.h</FilePath>
             </File>
             <File>
               <FileName>bmp3.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Slave_MCU\Slave_MCU\Hardware\bmp3.c</FilePath>
+              <FilePath>.\Hardware\bmp3.c</FilePath>
             </File>
             <File>
               <FileName>bmp3.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\Slave_MCU\Slave_MCU\Hardware\bmp3.h</FilePath>
+              <FilePath>.\Hardware\bmp3.h</FilePath>
             </File>
             <File>
               <FileName>bmp3_defs.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\Slave_MCU\Slave_MCU\Hardware\bmp3_defs.h</FilePath>
+              <FilePath>.\Hardware\bmp3_defs.h</FilePath>
             </File>
             <File>
               <FileName>BMP390.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Slave_MCU\Slave_MCU\Hardware\BMP390.c</FilePath>
+              <FilePath>.\Hardware\BMP390.c</FilePath>
             </File>
             <File>
               <FileName>BMP390.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\Slave_MCU\Slave_MCU\Hardware\BMP390.h</FilePath>
+              <FilePath>.\Hardware\BMP390.h</FilePath>
             </File>
             <File>
               <FileName>exti.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Slave_MCU\Slave_MCU\Hardware\exti.c</FilePath>
+              <FilePath>.\Hardware\exti.c</FilePath>
             </File>
             <File>
               <FileName>exti.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\Slave_MCU\Slave_MCU\Hardware\exti.h</FilePath>
+              <FilePath>.\Hardware\exti.h</FilePath>
             </File>
             <File>
               <FileName>MySPI.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Slave_MCU\Slave_MCU\Hardware\MySPI.c</FilePath>
+              <FilePath>.\Hardware\MySPI.c</FilePath>
             </File>
             <File>
               <FileName>MySPI.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\Slave_MCU\Slave_MCU\Hardware\MySPI.h</FilePath>
+              <FilePath>.\Hardware\MySPI.h</FilePath>
             </File>
             <File>
               <FileName>OpticalFlow.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Slave_MCU\Slave_MCU\Hardware\OpticalFlow.c</FilePath>
+              <FilePath>.\Hardware\OpticalFlow.c</FilePath>
             </File>
             <File>
               <FileName>OpticalFlow.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\Slave_MCU\Slave_MCU\Hardware\OpticalFlow.h</FilePath>
+              <FilePath>.\Hardware\OpticalFlow.h</FilePath>
             </File>
             <File>
               <FileName>QMC5883P.c</FileName>
               <FileType>1</FileType>
-              <FilePath>..\Slave_MCU\Slave_MCU\Hardware\QMC5883P.c</FilePath>
+              <FilePath>.\Hardware\QMC5883P.c</FilePath>
             </File>
             <File>
               <FileName>QMC5883P.h</FileName>
               <FileType>5</FileType>
-              <FilePath>..\Slave_MCU\Slave_MCU\Hardware\QMC5883P.h</FilePath>
+              <FilePath>.\Hardware\QMC5883P.h</FilePath>
             </File>
           </Files>
         </Group>
