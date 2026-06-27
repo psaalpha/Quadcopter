@@ -1,24 +1,22 @@
-#include "stm32f10x.h"                  // Device header
+#include "stm32f10x.h"
 #include "kalman.h"
 #include "math.h"
 
-// 卡尔曼滤波参数（抗电机振动最佳）
-#define KF_Q 0.2f   // 过程噪声（越小越信任陀螺仪）
-#define KF_R 0.2f    // 观测噪声（越大越滤振动）
+/* 卡尔曼滤波参数 */
+#define KF_Q 0.2f   /* 过程噪声：越小越信任陀螺仪积分 */
+#define KF_R 0.2f   /* 观测噪声：越大越抑制加速度计振动 */
 
-//================ Roll 专用卡尔曼变量 ================
-static float roll_angle;      // 最优角度
-static float roll_bias;       // 陀螺仪零漂
-static float P_roll[2][2];    // 协方差矩阵
+/* Roll 轴卡尔曼状态 */
+static float roll_angle;
+static float roll_bias;
+static float P_roll[2][2];
 
-//================ Pitch 专用卡尔曼变量 ================
-static float pitch_angle;     // 最优角度
-static float pitch_bias;     // 陀螺仪零漂
-static float P_pitch[2][2];   // 协方差矩阵
+/* Pitch 轴卡尔曼状态 */
+static float pitch_angle;
+static float pitch_bias;
+static float P_pitch[2][2];
 
-/**
-  * 功能：Roll 卡尔曼滤波初始化
-  */
+/* 初始化 Roll 轴卡尔曼滤波器。 */
 void Kalman_Roll_Init(void)
 {
     roll_angle = 0.0f;
@@ -29,9 +27,7 @@ void Kalman_Roll_Init(void)
     P_roll[1][1] = 1.0f;
 }
 
-/**
-  * 功能：Pitch 卡尔曼滤波初始化
-  */
+/* 初始化 Pitch 轴卡尔曼滤波器。 */
 void Kalman_Pitch_Init(void)
 {
     pitch_angle = 0.0f;
@@ -42,13 +38,7 @@ void Kalman_Pitch_Init(void)
     P_pitch[1][1] = 1.0f;
 }
 
-/**
-  * 功能：Roll 卡尔曼滤波计算（你要的功能）
-  * 输入：gyro —— 陀螺仪角速度(°/s)
-  *       acc_angle —— 加速度计计算的角度(°)
-  *       dt —— 采样时间 2ms = 0.002f
-  * 返回：滤波后稳定的 Roll 角度
-  */
+/* Roll 轴卡尔曼滤波：融合陀螺仪角速度和加速度计角度。 */
 float Kalman_Get_Roll(float gyro, float acc_angle, float dt)
 {
     float gyro_rate = gyro - roll_bias;
@@ -73,7 +63,7 @@ float Kalman_Get_Roll(float gyro, float acc_angle, float dt)
     P_roll[1][0] -= K1 * P00;
     P_roll[1][1] -= K1 * P_roll[1][1];
 
-    // ✅ 核心修复：强制限制协方差矩阵，防止发散
+    /* 限制协方差矩阵，防止数值发散。 */
     if(P_roll[0][0] > 10.0f) P_roll[0][0] = 10.0f;
     if(P_roll[1][1] > 10.0f) P_roll[1][1] = 10.0f;
     if(P_roll[0][0] < 0.0f)  P_roll[0][0] = 0.0f;
@@ -106,7 +96,7 @@ float Kalman_Get_Pitch(float gyro, float acc_angle, float dt)
     P_pitch[1][0] -= K1 * P00;
     P_pitch[1][1] -= K1 * P_pitch[1][1];
 
-    // ✅ 核心修复：强制限制协方差矩阵，防止发散
+    /* 限制协方差矩阵，防止数值发散。 */
     if(P_pitch[0][0] > 10.0f) P_pitch[0][0] = 10.0f;
     if(P_pitch[1][1] > 10.0f) P_pitch[1][1] = 10.0f;
     if(P_pitch[0][0] < 0.0f)  P_pitch[0][0] = 0.0f;

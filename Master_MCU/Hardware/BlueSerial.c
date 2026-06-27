@@ -19,7 +19,7 @@
 #include <stdlib.h>
 
 /* ============================================
- * 全局变量（接口保持不变）
+ * 全局变量
  * ============================================ */
 char    BlueSerial_RxPacket[100];
 uint8_t BlueSerial_RxFlag;
@@ -250,9 +250,7 @@ static void BS_ExtractRxBytes(void)
 }
 
 /* ============================================
- * RX 帧解析状态机
- * 帧格式: [tag,param,val]
- * 与旧版 RXNE 中断逻辑完全等价
+ * RX 帧解析状态机，帧格式: [tag,param,val]
  * ============================================ */
 static void BS_RxStateMachine(uint8_t byte)
 {
@@ -338,7 +336,7 @@ void BlueSerial_SendByte(uint8_t Byte)
 }
 
 /* ============================================
- * 以下函数完全保持原有实现
+ * 基础发送接口
  * ============================================ */
 
 void BlueSerial_SendArray(uint8_t *Array, uint16_t Length)
@@ -389,7 +387,7 @@ void BlueSerial_Printf(char *format, ...)
 }
 
 /* ============================================
- * PID_Param_Parse — 完全保留原有逻辑
+ * 解析蓝牙调参协议
  * ============================================ */
 void PID_Param_Parse(void)
 {
@@ -487,7 +485,7 @@ void PID_Param_Parse(void)
 }
 
 /* ============================================
- * PID 参数读接口（完全保留）
+ * PID 参数读接口
  * ============================================ */
 float Pitch_Back_Kp(void)        { return PKp; }
 float Pitch_Back_Ki(void)        { return PKi; }

@@ -1,0 +1,13 @@
+* text=auto
+.gitattributes text eol=lf
+
+# Source files use LF to avoid noisy line-ending changes across tools.
+*.c text eol=lf
+*.h text eol=lf
+*.s text eol=lf
+*.S text eol=lf
+
+# Windows / Keil project files use CRLF.
+*.uvprojx text eol=crlf
+*.uvoptx text eol=crlf
+*.bat text eol=crlf

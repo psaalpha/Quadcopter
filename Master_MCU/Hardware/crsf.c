@@ -1,45 +1,35 @@
 /**
   ******************************************************************************
   * @file    crsf.c
-  * @brief   CRSF (ExpressLRS) RC protocol parser using USART2 + DMA
+  * @brief   CRSF/ExpressLRS 遥控协议解析，基于 USART2 + DMA 环形缓冲。
   *
   *          USART2: PA2(TX) / PA3(RX)
-  *          Baudrate: 420000, 8N1
-  *          DMA1 Channel 6: circular-mode RX into ring buffer
+  *          波特率: 420000, 8N1
+  *          DMA1_Channel6: USART2_RX 环形接收
   ******************************************************************************
   */
 
 #include "crsf.h"
 #include <string.h>
 
-/* ============================================
- * Local Constants
- * ============================================ */
+/* 协议和串口配置常量 */
 #define CRSF_BAUDRATE   420000u
 
-/* ============================================
- * Global Variables
- * ============================================ */
+/* 遥控通道输出，单位映射到 1000~2000us */
 int16_t rcChannels[16] = {0};
 volatile uint8_t crsf_frame_received = 0;
 
-/* ============================================
- * DMA Circular Buffer
- * ============================================ */
+/* DMA 环形接收缓冲 */
 static uint8_t  crsf_dma_buf[CRSF_DMA_BUF_SIZE] __attribute__((aligned(4)));
 static uint32_t crsf_dma_last_ndtr = 0;
 
-/* ============================================
- * Internal State
- * ============================================ */
+/* CRSF 帧解析状态 */
 static uint8_t  crsf_frame_buf[CRSF_MAX_FRAME_LEN + 4]; /* sync + len + type + payload + crc */
 static uint8_t  crsf_frame_ofs = 0;
 static uint8_t  crsf_expected_len = 0;
 static uint8_t  crsf_in_frame = 0;
 
-/* ============================================
- * Local Function Prototypes
- * ============================================ */
+/* 静态函数声明 */
 static void CRSF_GPIO_Config(void);
 static void CRSF_USART_Config(void);
 static void CRSF_DMA_Config(void);
@@ -48,15 +38,12 @@ static void CRSF_UnpackRC(const uint8_t *payload);
 static void CRSF_FeedByte(uint8_t byte);
 static void CRSF_ReadDMABuffer(void);
 
-/* ============================================
- * CRSF_Init - Initialize USART2 + DMA for CRSF
- * ============================================ */
+/* 初始化 CRSF 接收链路。 */
 void CRSF_Init(void)
 {
-    /* Zero out channel array */
     memset(rcChannels, 0, sizeof(rcChannels));
 
-    /* Default mid-stick for safety */
+    /* 安全默认值：横滚/俯仰/偏航居中，油门最低。 */
     rcChannels[0] = 1500;
     rcChannels[1] = 1500;
     rcChannels[2] = 1000;
@@ -67,38 +54,30 @@ void CRSF_Init(void)
     CRSF_DMA_Config();
 }
 
-/* ============================================
- * GPIO Configuration: PA2=USART2_TX (AF PP)
- *                     PA3=USART2_RX (Input floating)
- * ============================================ */
+/* GPIO 配置：PA2=USART2_TX，PA3=USART2_RX。 */
 static void CRSF_GPIO_Config(void)
 {
     GPIO_InitTypeDef GPIO_InitStructure;
 
-    /* Enable GPIOA clock */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
 
-    /* PA2 - USART2 TX (Alternate function push-pull) */
+    /* PA2：复用推挽输出。 */
     GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_2;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_AF_PP;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
 
-    /* PA3 - USART2 RX (Input floating) */
+    /* PA3：浮空输入。 */
     GPIO_InitStructure.GPIO_Pin  = GPIO_Pin_3;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
     GPIO_Init(GPIOA, &GPIO_InitStructure);
 }
 
-/* ============================================
- * USART2 Configuration: 420000 baud, 8N1
- * USART2 is on APB1 bus (max 36MHz)
- * ============================================ */
+/* USART2 配置：420000 baud，8N1。 */
 static void CRSF_USART_Config(void)
 {
     USART_InitTypeDef USART_InitStructure;
 
-    /* Enable USART2 clock (APB1) */
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
 
     USART_StructInit(&USART_InitStructure);
@@ -110,22 +89,17 @@ static void CRSF_USART_Config(void)
     USART_InitStructure.USART_Mode                = USART_Mode_Rx | USART_Mode_Tx;
     USART_Init(USART2, &USART_InitStructure);
 
-    /* Enable DMA receiver - USART2_RX is on DMA1_Channel6 */
+    /* USART2_RX 使用 DMA1_Channel6 接收。 */
     USART_DMACmd(USART2, USART_DMAReq_Rx, ENABLE);
 
-    /* Enable USART2 */
     USART_Cmd(USART2, ENABLE);
 }
 
-/* ============================================
- * DMA1 Channel 6 Configuration: Circular mode
- * USART2_RX is on DMA1_Channel6
- * ============================================ */
+/* DMA1_Channel6 配置为环形接收。 */
 static void CRSF_DMA_Config(void)
 {
     DMA_InitTypeDef DMA_InitStructure;
 
-    /* Enable DMA1 clock */
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 
     DMA_DeInit(DMA1_Channel6);
@@ -143,42 +117,33 @@ static void CRSF_DMA_Config(void)
     DMA_InitStructure.DMA_M2M                = DMA_M2M_Disable;
     DMA_Init(DMA1_Channel6, &DMA_InitStructure);
 
-    /* Enable DMA channel */
     DMA_Cmd(DMA1_Channel6, ENABLE);
 
-    /* Save initial NDTR value for tracking */
+    /* 记录初始 NDTR，后续通过差值计算新增字节数。 */
     crsf_dma_last_ndtr = DMA_GetCurrDataCounter(DMA1_Channel6);
 }
 
-/* ============================================
- * CRSF_Process - Called from main loop
- * Reads new data from DMA ring buffer and
- * feeds bytes to the CRSF frame parser
- * ============================================ */
+/* 主循环周期调用：从 DMA 环形缓冲取出新字节并喂给帧状态机。 */
 void CRSF_Process(void)
 {
     CRSF_ReadDMABuffer();
 }
 
-/* ============================================
- * Read new bytes from the DMA circular buffer
- * by tracking NDTR register changes
- * ============================================ */
+/* 根据 DMA NDTR 变化读取新增字节。 */
 static void CRSF_ReadDMABuffer(void)
 {
     uint32_t ndtr = DMA_GetCurrDataCounter(DMA1_Channel6);
 
-    /* Calculate how many bytes have been written by DMA */
-    /* NDTR counts down from BUF_SIZE-1 to 0 */
+    /* NDTR 递减计数，通过上一次 NDTR 与当前 NDTR 的差值计算新增字节。 */
     uint32_t new_bytes;
     if (ndtr <= crsf_dma_last_ndtr)
     {
-        /* Normal case: DMA continued writing forward */
+        /* 未回绕。 */
         new_bytes = crsf_dma_last_ndtr - ndtr;
     }
     else
     {
-        /* Wrap-around: DMA wrapped back to start of buffer */
+        /* 环形缓冲发生回绕。 */
         new_bytes = CRSF_DMA_BUF_SIZE - ndtr + crsf_dma_last_ndtr;
     }
 
@@ -193,23 +158,19 @@ static void CRSF_ReadDMABuffer(void)
 
         crsf_dma_last_ndtr = ndtr;
     }
-    /* Reset tracking if counter seems inconsistent (overflow recovery) */
+    /* 异常或溢出时重置游标。 */
     else if (new_bytes >= CRSF_DMA_BUF_SIZE)
     {
         crsf_dma_last_ndtr = ndtr;
     }
 }
 
-/* ============================================
- * Feed a single byte into the frame parser
- * Implements a simple state machine:
- *   IDLE -> (0xC8 or 0xEE) -> LEN -> TYPE -> PAYLOAD -> CRC
- * ============================================ */
+/* 单字节喂入 CRSF 帧状态机：SYNC -> LEN -> TYPE/PAYLOAD/CRC。 */
 static void CRSF_FeedByte(uint8_t byte)
 {
     if (!crsf_in_frame)
     {
-        /* Look for sync byte */
+        /* 查找同步字节。 */
         if (byte == CRSF_SYNC_BYTE_RC || byte == CRSF_SYNC_BYTE_TLM)
         {
             crsf_frame_buf[0] = byte;
@@ -220,7 +181,7 @@ static void CRSF_FeedByte(uint8_t byte)
         return;
     }
 
-    /* Store byte in frame buffer */
+    /* 保存当前帧字节。 */
     if (crsf_frame_ofs < sizeof(crsf_frame_buf))
     {
         crsf_frame_buf[crsf_frame_ofs] = byte;
@@ -229,11 +190,11 @@ static void CRSF_FeedByte(uint8_t byte)
 
     if (crsf_frame_ofs == 2)
     {
-        /* Length byte: payload length (type + data + crc) */
+        /* 长度字节包含 type + payload + crc。 */
         crsf_expected_len = byte;
         if (crsf_expected_len > CRSF_MAX_FRAME_LEN)
         {
-            /* Invalid length, abort */
+            /* 长度非法，放弃当前帧。 */
             crsf_in_frame = 0;
             crsf_frame_ofs = 0;
         }
@@ -241,28 +202,25 @@ static void CRSF_FeedByte(uint8_t byte)
 
     if (crsf_in_frame && crsf_frame_ofs >= (uint8_t)(crsf_expected_len + 2))
     {
-        /* Frame complete: sync(1) + len(1) + payload(len) = 2+len bytes */
+        /* 帧完整：sync(1) + len(1) + payload(len)。 */
         CRSF_ParseFrame(crsf_frame_buf, crsf_frame_ofs);
         crsf_in_frame = 0;
         crsf_frame_ofs = 0;
     }
 }
 
-/* ============================================
- * Parse a complete CRSF frame
- * Format: [sync] [len] [type] [payload...] [crc]
- * ============================================ */
+/* 解析完整 CRSF 帧，格式：[sync][len][type][payload...][crc]。 */
 static void CRSF_ParseFrame(const uint8_t *frame, uint8_t len)
 {
-    if (len < 4) return; /* Minimum: sync + len + type + crc */
+    if (len < 4) return; /* 最小帧：sync + len + type + crc */
 
     uint8_t type = frame[2];
 
     switch (type)
     {
     case CRSF_TYPE_RC_CHANNELS:
-        /* Payload is 22 bytes (16 channels × 11 bits) */
-        if (len >= 26) /* sync(1) + len(1) + type(1) + 22 bytes + crc(1) */
+        /* RC 通道 payload 为 22 字节：16 通道 * 11 bit。 */
+        if (len >= 26) /* sync(1) + len(1) + type(1) + 22 + crc(1) */
         {
             CRSF_UnpackRC(&frame[3]);
             crsf_frame_received = 1;
@@ -275,26 +233,15 @@ static void CRSF_ParseFrame(const uint8_t *frame, uint8_t len)
     case CRSF_TYPE_GPS:
     case CRSF_TYPE_HEARTBEAT:
     default:
-        /* Other frame types: silently ignored */
+        /* 其他帧类型当前不处理。 */
         break;
     }
 }
 
-/* ============================================
- * Unpack 16 RC channels from 22-byte payload
- *
- * CRSF encodes channels as 11-bit values, LSB-first,
- * packed across 22 bytes (176 bits = 16 × 11)
- *
- * Standard CRSF bitstream (LSB-first within each byte):
- *   Byte[0] bits: Ch1[7:0]
- *   Byte[1] bits: Ch1[10:8] + Ch2[4:0]
- *   Byte[2] bits: Ch2[10:5] + Ch3[1:0]
- *   ...
- *
- * Raw range: 172 ~ 1811  (988us ~ 2012us)
- * Mapped to: 1000 ~ 2000us
- * ============================================ */
+/* 解包 16 个 RC 通道。
+ * CRSF 使用 22 字节承载 16 个 11bit 通道，LSB-first 打包。
+ * 原始范围约 172~1811，对应输出 1000~2000us。
+ */
 static void CRSF_UnpackRC(const uint8_t *payload)
 {
     uint16_t raw[16];
@@ -304,7 +251,7 @@ static void CRSF_UnpackRC(const uint8_t *payload)
 
     for (int i = 0; i < 16; i++)
     {
-        /* Accumulate at least 11 bits into read_value */
+        /* 累积至少 11bit 后取出一个通道值。 */
         while (bits_merged < 11)
         {
             read_value |= ((uint32_t)payload[byte_idx]) << bits_merged;
@@ -312,15 +259,15 @@ static void CRSF_UnpackRC(const uint8_t *payload)
             bits_merged += 8;
         }
 
-        /* Extract 11 bits */
+        /* 取低 11bit。 */
         raw[i] = (uint16_t)(read_value & 0x07FFu);
 
-        /* Consume 11 bits for next channel */
+        /* 消耗 11bit，继续解析下一通道。 */
         read_value >>= 11;
         bits_merged  -= 11;
     }
 
-    /* Map raw CRSF range (172~1811) to output range (1000~2000us) */
+    /* 映射到常用 PWM 通道范围 1000~2000us。 */
     for (int i = 0; i < 16; i++)
     {
         if (raw[i] <= CRSF_RC_CH_MIN)
@@ -333,7 +280,7 @@ static void CRSF_UnpackRC(const uint8_t *payload)
         }
         else
         {
-            /* Linear interpolation */
+            /* 线性插值。 */
             rcChannels[i] = (int16_t)(
                 CRSF_RC_OUT_MIN +
                 ((int32_t)(raw[i] - CRSF_RC_CH_MIN) *

@@ -1,27 +1,27 @@
-#include "stm32f10x.h"                  // Device header
+#include "stm32f10x.h"
 #include "Delay.h"
 
-/* 核心修改1：把10us延时改成1us（满足I2C最小时序即可） */
+/* 软件 I2C 位操作延时。 */
 #define I2C_DELAY_US 1
 
-/*引脚配置层*/
+/* GPIO 时序控制。 */
 void MyI2C_W_SCL(uint8_t BitValue)
 {
 	GPIO_WriteBit(GPIOA, GPIO_Pin_6, (BitAction)BitValue);
-	Delay_us(I2C_DELAY_US);  // 从10us→1us，速度提升10倍
+	Delay_us(I2C_DELAY_US);
 }
 
 void MyI2C_W_SDA(uint8_t BitValue)
 {
 	GPIO_WriteBit(GPIOA, GPIO_Pin_7, (BitAction)BitValue);
-	Delay_us(I2C_DELAY_US);  // 从10us→1us
+	Delay_us(I2C_DELAY_US);
 }
 
 uint8_t MyI2C_R_SDA(void)
 {
 	uint8_t BitValue;
 	BitValue = GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_7);
-	Delay_us(I2C_DELAY_US);  // 从10us→1us
+	Delay_us(I2C_DELAY_US);
 	return BitValue;
 }
 
@@ -38,7 +38,7 @@ void MyI2C_Init(void)
 	GPIO_SetBits(GPIOA, GPIO_Pin_6 | GPIO_Pin_7);
 }
 
-/*协议层*/
+/* I2C 协议时序。 */
 void MyI2C_Start(void)
 {
 	MyI2C_W_SDA(1);
@@ -95,24 +95,24 @@ uint8_t MyI2C_ReceiveAck(void)
 	return AckBit;
 }
 
-/* 核心修改2：新增批量读取函数（关键！一次读多个字节） */
+/* 从指定寄存器开始连续读取多个字节。 */
 void MyI2C_ReadBytes(uint8_t addr, uint8_t reg, uint8_t *buf, uint8_t len)
 {
 	MyI2C_Start();
-	MyI2C_SendByte(addr);          // 发送设备地址（写）
+	MyI2C_SendByte(addr);          /* 设备地址：写 */
 	MyI2C_ReceiveAck();
-	MyI2C_SendByte(reg);           // 发送起始寄存器地址
+	MyI2C_SendByte(reg);           /* 起始寄存器地址 */
 	MyI2C_ReceiveAck();
 	
 	MyI2C_Start();
-	MyI2C_SendByte(addr | 0x01);   // 发送设备地址（读）
+	MyI2C_SendByte(addr | 0x01);   /* 设备地址：读 */
 	MyI2C_ReceiveAck();
 	
 	for(uint8_t i=0; i<len; i++)
 	{
 		buf[i] = MyI2C_ReceiveByte();
-		if(i < len-1) MyI2C_SendAck(0);  // 前n-1个字节发应答
-		else MyI2C_SendAck(1);           // 最后1个字节发非应答
+		if(i < len-1) MyI2C_SendAck(0);  /* 前 n-1 个字节应答 */
+		else MyI2C_SendAck(1);           /* 最后 1 个字节非应答 */
 	}
 	
 	MyI2C_Stop();

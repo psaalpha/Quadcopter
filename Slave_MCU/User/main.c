@@ -21,7 +21,7 @@
  *    PA5:  SPI1_SCK
  *    PA6:  SPI1_MISO
  *    PA7:  SPI1_MOSI
- *    PA8:  校准触发输入（IPU, 检测 0→1→0 脉冲）
+ *    PA8:  校准触发输入（IPU，检测 1→0→1 脉冲）
  *    PA9:  USART1_TX → 光流模块
  *    PA10: USART1_RX ← 光流模块
  *    PB1:  ADC1_IN9 → 电池电压检测
@@ -49,68 +49,53 @@
 #include "OpticalFlow.h"
 #include "AT7456E.h"
 
-// ============================================================
-// BMP390 SPI 驱动函数声明（实现在 Hardware/BMP390.c）
-// ============================================================
+/* BMP390 SPI 驱动适配函数，实现在 Hardware/BMP390.c。 */
 extern void    SPI1_Init(void);
 extern int8_t  bmp3_spi_read(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, void *intf_ptr);
 extern int8_t  bmp3_spi_write(uint8_t reg_addr, const uint8_t *reg_data, uint32_t len, void *intf_ptr);
 extern void    bmp3_delay_us(uint32_t period, void *intf_ptr);
 extern uint8_t SPI_ReadWrite(uint8_t tx_data);
 
-// ============================================================
-// 外部变量
-// ============================================================
-extern volatile uint8_t key_flag;   // exti.c：PA0 下降沿 → 归零相对高度
+extern volatile uint8_t key_flag;   /* exti.c：PA0 下降沿置位，用于归零相对高度 */
 
-// ============================================================
-// 引脚宏定义
-// ============================================================
+/* GPIO 引脚定义 */
 #define SERVO_LEVEL_PORT   GPIOA
 #define SERVO_LEVEL_PIN    GPIO_Pin_1
 #define CALIB_TRIG_PORT    GPIOA
 #define CALIB_TRIG_PIN     GPIO_Pin_8
 
-// ============================================================
-// 舵机 PWM 角度预设（脉宽 us，500=0°, 1500=90°, 2500=180°）
-// ============================================================
-#define SERVO_ANGLE_HIGH   2000    // 高电平 → 约 135°
-#define SERVO_ANGLE_LOW    1000    // 低电平 → 约 45°
+/* 舵机 PWM 角度预设，单位 us：500≈0°，1500≈90°，2500≈180°。 */
+#define SERVO_ANGLE_HIGH   2000    /* 高电平输入时输出约 135° */
+#define SERVO_ANGLE_LOW    1000    /* 低电平输入时输出约 45° */
 
-// ============================================================
-// 校准参数
-// ============================================================
-#define CALIB_DURATION_SEC  10     // 校准倒计时（秒）
-#define ADC_VOLT_DIVIDER    4.0f  // 电池分压比（R1+R2)/R2，按实际电路修改
-#define ADC_VREF            3.30f // 基准电压
-#define LOW_BATT_THRESHOLD  10.50f // 低电量预警阈值 (V), 3.5V/节
+/* 校准与电源检测参数 */
+#define CALIB_DURATION_SEC  10      /* 磁力计校准倒计时，单位秒 */
+#define ADC_VOLT_DIVIDER    4.0f    /* 电池分压比：(R1+R2)/R2 */
+#define ADC_VREF            3.30f   /* ADC 参考电压 */
+#define LOW_BATT_THRESHOLD  10.50f  /* 低电压阈值，约 3.5V/节 */
 
 #define BUZZER_PORT         GPIOA
-#define BUZZER_PIN          GPIO_Pin_3    // PA3, 有源蜂鸣器，低电平响
+#define BUZZER_PIN          GPIO_Pin_3    /* PA3，有源蜂鸣器，低电平响 */
 
-// ============================================================
-// 数据包定义（USART2 发送给主飞控）
-// ============================================================
+/* USART2 发送给主飞控的数据包定义。 */
 #define PACKET_HEADER  0xA5
 
 typedef __packed struct {
-    uint8_t  header;           // 0xA5
-    uint8_t  length;           // 负载长度（不含 header/checksum）
-    float    pressure;         // 气压 (Pa)
-    float    temperature;      // 温度 (°C)
-    float    altitude;         // 相对高度 (cm)
-    float    yaw;              // 磁力计航向 (0~360°)
-    int32_t  flow_x;           // 光流 X 原始值
-    int32_t  flow_y;           // 光流 Y 原始值
-    uint16_t flow_distance;    // 测距 (mm)
-    uint8_t  flow_quality;     // 信号强度 (0~100)
-    uint8_t  checksum;         // 异或校验
+    uint8_t  header;           /* 固定帧头 0xA5 */
+    uint8_t  length;           /* 负载长度，不含 header/checksum */
+    float    pressure;         /* 气压，单位 Pa */
+    float    temperature;      /* 温度，单位 °C */
+    float    altitude;         /* 相对高度，单位 cm */
+    float    yaw;              /* 磁力计航向角，0~360° */
+    int32_t  flow_x;           /* 光流 X 原始值 */
+    int32_t  flow_y;           /* 光流 Y 原始值 */
+    uint16_t flow_distance;    /* 光流测距，单位 mm */
+    uint8_t  flow_quality;     /* 光流信号强度，0~100 */
+    uint8_t  checksum;         /* byte0~byte28 异或校验 */
 } SensorPacket_t;
 
-// ============================================================
-// 看门狗
-// ============================================================
-#define IWDG_RELOAD_COUNT  625    // LSI 40kHz / 64 = 625Hz, 625 / 625 = 1s 超时
+/* 独立看门狗：LSI 40kHz / 64 = 625Hz，重装载 625 约 1s 超时。 */
+#define IWDG_RELOAD_COUNT  625
 
 static void IWDG_Init(void)
 {
@@ -133,23 +118,17 @@ static void IWDG_Init(void)
     IWDG_Enable();
 }
 
-/** 喂狗，主循环中调用 */
+/* 喂狗，主循环中调用。 */
 static void IWDG_Feed(void)
 {
     IWDG_ReloadCounter();
 }
 
-// ============================================================
-// 定时器 50ms 中断标志（20Hz）
-// ============================================================
+/* TIM2 50ms 周期标志。变量名保留历史命名，实际不是 100ms。 */
 volatile uint8_t timer_100ms_flag = 0;
-static float   battery_voltage = 0.0f;   // 电池电压
+static float   battery_voltage = 0.0f;   /* 电池电压，单位 V */
 
-// ============================================================
-// ==== 滤波模块（保留原有双级滤波）====
-// ============================================================
-
-/* ---- 滑动均值滤波 ---- */
+/* 气压高度滤波：滑动均值 + 慢速基线漂移滤波。 */
 #define FILTER_WINDOW_SIZE  8
 
 static double filter_buffer[FILTER_WINDOW_SIZE] = {0};
@@ -168,7 +147,7 @@ static double moving_average_filter(double new_val)
     return sum / count;
 }
 
-/* ---- 长时间常数高通滤波（滤除天气漂移）---- */
+/* 长时间常数基线滤波，用于抑制天气和气压缓慢漂移。 */
 #define BASELINE_ALPHA  0.00025
 
 static double altitude_baseline   = 0.0;
@@ -186,9 +165,7 @@ static double drift_filter(double raw_altitude)
     return raw_altitude - altitude_baseline;
 }
 
-// ============================================================
-// ==== TIM2 初始化：50ms 中断（20Hz）====
-// ============================================================
+/* 初始化 TIM2：50ms 周期中断，20Hz。 */
 static void TIM2_Init(void)
 {
     TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
@@ -196,9 +173,9 @@ static void TIM2_Init(void)
 
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM2, ENABLE);
 
-    TIM_TimeBaseStructure.TIM_Prescaler         = 7200 - 1;    // 10kHz
+    TIM_TimeBaseStructure.TIM_Prescaler         = 7200 - 1;    /* 10kHz */
     TIM_TimeBaseStructure.TIM_CounterMode       = TIM_CounterMode_Up;
-    TIM_TimeBaseStructure.TIM_Period            = 500 - 1;     // 50ms
+    TIM_TimeBaseStructure.TIM_Period            = 500 - 1;     /* 50ms */
     TIM_TimeBaseStructure.TIM_ClockDivision     = TIM_CKD_DIV1;
     TIM_TimeBaseStructure.TIM_RepetitionCounter = 0;
     TIM_TimeBaseInit(TIM2, &TIM_TimeBaseStructure);
@@ -215,9 +192,7 @@ static void TIM2_Init(void)
     TIM_Cmd(TIM2, ENABLE);
 }
 
-// ============================================================
-// ==== TIM3 PWM 初始化：舵机（PB0, 50Hz, 20ms 周期）====
-// ============================================================
+/* 初始化 TIM3_CH3 舵机 PWM：PB0，50Hz，20ms 周期。 */
 static void Servo_Init(void)
 {
     GPIO_InitTypeDef GPIO_InitStructure;
@@ -227,13 +202,13 @@ static void Servo_Init(void)
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
 
-    // PB0 → TIM3_CH3 复用推挽
+    /* PB0 -> TIM3_CH3 */
     GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_0;
     GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_AF_PP;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOB, &GPIO_InitStructure);
 
-    // TIM3: 72MHz / 72 = 1MHz, ARR=20000-1 → 20ms
+    /* TIM3: 72MHz / 72 = 1MHz，ARR=20000-1 -> 20ms。 */
     TIM_TimeBaseStructure.TIM_Prescaler         = 72 - 1;
     TIM_TimeBaseStructure.TIM_CounterMode       = TIM_CounterMode_Up;
     TIM_TimeBaseStructure.TIM_Period            = 20000 - 1;
@@ -243,7 +218,7 @@ static void Servo_Init(void)
 
     TIM_OCInitStructure.TIM_OCMode      = TIM_OCMode_PWM1;
     TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
-    TIM_OCInitStructure.TIM_Pulse       = 1500;     // 默认中立位 1.5ms
+    TIM_OCInitStructure.TIM_Pulse       = 1500;     /* 默认中立位 1.5ms */
     TIM_OCInitStructure.TIM_OCPolarity  = TIM_OCPolarity_High;
     TIM_OC3Init(TIM3, &TIM_OCInitStructure);
 
@@ -259,29 +234,25 @@ static void Servo_SetPulse(uint16_t pulse_us)
     TIM_SetCompare3(TIM3, pulse_us);
 }
 
-// ============================================================
-// ==== GPIO 输入初始化 ====
-// ============================================================
+/* 初始化 PA1 舵机输入和 PA8 磁力计校准触发输入。 */
 static void GPIO_Inputs_Init(void)
 {
     GPIO_InitTypeDef GPIO_InitStructure;
 
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
 
-    // PA1: 舵机电平检测（上拉输入）
+    /* PA1：舵机电平检测，上拉输入。 */
     GPIO_InitStructure.GPIO_Pin   = SERVO_LEVEL_PIN;
     GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_IPU;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(SERVO_LEVEL_PORT, &GPIO_InitStructure);
 
-    // PA8: 校准触发（上拉输入）
+    /* PA8：磁力计校准触发，上拉输入。 */
     GPIO_InitStructure.GPIO_Pin = CALIB_TRIG_PIN;
     GPIO_Init(CALIB_TRIG_PORT, &GPIO_InitStructure);
 }
 
-// ============================================================
-// ==== 蜂鸣器初始化：PA3，低电平驱动 ====
-// ============================================================
+/* 初始化蜂鸣器：PA3，低电平驱动。 */
 static void Buzzer_Init(void)
 {
     GPIO_InitTypeDef GPIO_InitStructure;
@@ -292,12 +263,10 @@ static void Buzzer_Init(void)
     GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_Out_PP;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(BUZZER_PORT, &GPIO_InitStructure);
-    GPIO_SetBits(BUZZER_PORT, BUZZER_PIN);  // 默认高电平 = 蜂鸣器不响
+    GPIO_SetBits(BUZZER_PORT, BUZZER_PIN);
 }
 
-// ============================================================
-// ==== ADC1 初始化：PB1 电池电压检测 ====
-// ============================================================
+/* 初始化 ADC1_IN9：PB1 电池电压检测。 */
 static void ADC_Battery_Init(void)
 {
     GPIO_InitTypeDef GPIO_InitStructure;
@@ -305,12 +274,12 @@ static void ADC_Battery_Init(void)
 
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB | RCC_APB2Periph_ADC1, ENABLE);
 
-    // PB1 = 模拟输入
+    /* PB1 模拟输入。 */
     GPIO_InitStructure.GPIO_Pin  = GPIO_Pin_1;
     GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
     GPIO_Init(GPIOB, &GPIO_InitStructure);
 
-    // ADC1 配置：单次转换，软件触发
+    /* ADC1 单次转换，软件触发。 */
     ADC_InitStructure.ADC_Mode               = ADC_Mode_Independent;
     ADC_InitStructure.ADC_ScanConvMode       = DISABLE;
     ADC_InitStructure.ADC_ContinuousConvMode = DISABLE;
@@ -322,14 +291,14 @@ static void ADC_Battery_Init(void)
     ADC_RegularChannelConfig(ADC1, ADC_Channel_9, 1, ADC_SampleTime_55Cycles5);
     ADC_Cmd(ADC1, ENABLE);
 
-    // 校准
+    /* ADC 自校准。 */
     ADC_ResetCalibration(ADC1);
     while (ADC_GetResetCalibrationStatus(ADC1));
     ADC_StartCalibration(ADC1);
     while (ADC_GetCalibrationStatus(ADC1));
 }
 
-/** @brief 读取电池电压，返回 V */
+/* 读取电池电压，返回单位 V。 */
 static float ADC_ReadBattery(void)
 {
     ADC_SoftwareStartConvCmd(ADC1, ENABLE);
@@ -338,9 +307,7 @@ static float ADC_ReadBattery(void)
     return (float)adc_val / 4095.0f * ADC_VREF * ADC_VOLT_DIVIDER;
 }
 
-// ============================================================
-// ==== USART2 初始化：向上位机发送数据（仅 TX）====
-// ============================================================
+/* 初始化 USART2：仅 TX，用于向主飞控发送传感器数据包。 */
 static void USART2_Init(void)
 {
     GPIO_InitTypeDef GPIO_InitStructure;
@@ -349,7 +316,7 @@ static void USART2_Init(void)
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
 
-    // PA2 = TX
+    /* PA2 = USART2_TX。 */
     GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_2;
     GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_AF_PP;
@@ -366,9 +333,7 @@ static void USART2_Init(void)
     USART_Cmd(USART2, ENABLE);
 }
 
-// ============================================================
-// ==== USART2 发送一包数据 ====
-// ============================================================
+/* USART2 发送一包固定格式的传感器数据。 */
 static void USART2_SendPacket(SensorPacket_t *pkt)
 {
     uint8_t i;
@@ -389,31 +354,26 @@ static void USART2_SendPacket(SensorPacket_t *pkt)
     }
 }
 
-// ============================================================
-// 校准状态机类型（文件作用域）
-// ============================================================
+/* 磁力计校准状态机。 */
 typedef enum { CALIB_IDLE, CALIB_COUNTDOWN } CalibState_t;
 
-// ============================================================
-// ==== 主函数 ====
-// ============================================================
 int main(void)
 {
-    // ========== 阶段1：硬件初始化 ==========
-    SPI1_Init();                // SPI1 → BMP390 气压计
-    OpticalFlow_Init();         // USART1 → 光流传感器（中断接收）
-    USART2_Init();              // USART2 → 主飞控通信
-    Servo_Init();               // TIM3_CH3(PB0) → 舵机 PWM
-    ADC_Battery_Init();         // PB1 → ADC1_IN9 电池电压检测
-    GPIO_Inputs_Init();         // PA1(舵机检测) + PA8(校准触发)
-    Buzzer_Init();              // PA3 → 有源蜂鸣器（低电平响）
-    AT7456E_Init();             // AT7456E OSD 图传芯片（软件 SPI）
-    OSD_Init();                 // OSD 显示框架初始化
+    /* 硬件初始化 */
+    SPI1_Init();
+    OpticalFlow_Init();
+    USART2_Init();
+    Servo_Init();
+    ADC_Battery_Init();
+    GPIO_Inputs_Init();
+    Buzzer_Init();
+    AT7456E_Init();
+    OSD_Init();
     OLED_Init();
     OLED_Clear();
-    EXTI_Key_Init();            // PA0 EXTI（exti.c: 归零相对高度）
+    EXTI_Key_Init();
 
-    // ========== 阶段2：BMP390 气压计初始化 ==========
+    /* BMP390 气压计初始化。 */
     struct bmp3_dev      dev;
     struct bmp3_settings settings;
     int8_t rslt;
@@ -443,90 +403,76 @@ int main(void)
     bmp3_set_op_mode(&settings, &dev);
     Delay_ms(200);
 
-    // ========== 阶段3：QMC5883P 磁力计初始化 ==========
+    /* QMC5883P 磁力计初始化。 */
     uint8_t mag_ok = (QMC5883P_Init() == 0);
 
-    // ========== 阶段4：启动看门狗（所有硬件初始化完成后）==========
+    /* 所有外设初始化完成后再启动看门狗。 */
     IWDG_Init();
 
-    // ========== 阶段5：启动定时器 ==========
-    TIM2_Init();    // 100ms 周期中断
+    TIM2_Init();
 
-    // ========== 阶段6：状态变量 ==========
+    /* 主循环状态变量。 */
     struct bmp3_data data;
     char buf[20];
 
-    // ---- 校准状态机 ----
     CalibState_t calib_state           = CALIB_IDLE;
-    uint16_t     calib_timer           = 0;       // 倒计时（×50ms）
-    uint8_t      calib_prev_level        = 1;       // PA8 上一轮电平
-    uint8_t      calib_falling_detected  = 0;       // 是否已捕获下降沿
+    uint16_t     calib_timer           = 0;       /* 倒计时计数，单位 50ms */
+    uint8_t      calib_prev_level        = 1;       /* PA8 上一轮电平 */
+    uint8_t      calib_falling_detected  = 0;       /* 是否已捕获下降沿 */
 
-    // ========== 阶段7：主循环 ==========
     while (1)
     {
-        IWDG_Feed();   // 喂狗，每轮一次
+        IWDG_Feed();
 
-        // ====================================================
-        // ① 舵机电平检测（PA1: 高→角度A, 低→角度B）
-        // ====================================================
+        /* 舵机电平检测：PA1 高/低电平映射到两档 PWM 脉宽。 */
         uint8_t servo_level = GPIO_ReadInputDataBit(SERVO_LEVEL_PORT, SERVO_LEVEL_PIN);
         Servo_SetPulse(servo_level ? SERVO_ANGLE_HIGH : SERVO_ANGLE_LOW);
 
-        // ====================================================
-        // ② 校准触发检测（PA8: 1→0→1 脉冲 → 进入校准）
-        // ====================================================
+        /* PA8 检测 1->0->1 脉冲，触发磁力计校准。 */
         uint8_t calib_level = GPIO_ReadInputDataBit(CALIB_TRIG_PORT, CALIB_TRIG_PIN);
 
         if (calib_prev_level == 1 && calib_level == 0) {
-            calib_falling_detected = 1;             // 捕获下降沿
+            calib_falling_detected = 1;
         }
         else if (calib_falling_detected && calib_prev_level == 0 && calib_level == 1) {
-            // 下降沿之后出现上升沿 → 完整 1→0→1 脉冲
             if (calib_state == CALIB_IDLE) {
                 calib_state = CALIB_COUNTDOWN;
-                calib_timer = CALIB_DURATION_SEC * 20;   // 10秒 × 20(每50ms)
+                calib_timer = CALIB_DURATION_SEC * 20;
                 QMC5883P_Calibrate_Start();
             }
             calib_falling_detected = 0;
         }
         calib_prev_level = calib_level;
 
-        // ====================================================
-        // ③ 校准采集（每个循环都采，不等待定时器）
-        // ====================================================
+        /* 校准期间尽可能高频采集磁力计极值。 */
         if (calib_state == CALIB_COUNTDOWN) {
             QMC5883P_Calibrate_Collect();
         }
 
-        // ====================================================
-        // ④ 50ms 定时 → 读取传感器 + 打包 + 发送 + 显示
-        // ====================================================
+        /* 50ms 周期任务：传感器采集、打包发送、显示刷新。 */
         if (timer_100ms_flag) {
             timer_100ms_flag = 0;
 
-            // ---- 校准倒计时 ----
+            /* 磁力计校准倒计时结束后保存校准结果。 */
             if (calib_state == CALIB_COUNTDOWN) {
                 if (--calib_timer == 0) {
                     if (QMC5883P_Calibrate_End() == 0) {
-                        // Flash 保存成功，可通过 OLED/蜂鸣器提示
                     }
                     calib_state = CALIB_IDLE;
                 }
             }
 
-            // ---- 光流超时检测 ----
             OpticalFlow_TimeoutCheck();
 
-            // ---- 读取电池电压 + 低电量预警 ----
+            /* 电池电压检测与低压报警。 */
             battery_voltage = ADC_ReadBattery();
             if (battery_voltage < LOW_BATT_THRESHOLD && battery_voltage > 0.5f) {
-                GPIO_ResetBits(BUZZER_PORT, BUZZER_PIN);  // 低电平 → 蜂鸣
+                GPIO_ResetBits(BUZZER_PORT, BUZZER_PIN);
             } else {
-                GPIO_SetBits(BUZZER_PORT, BUZZER_PIN);    // 高电平 → 静音
+                GPIO_SetBits(BUZZER_PORT, BUZZER_PIN);
             }
 
-            // ---- 读取 BMP390 气压计 ----
+            /* 读取 BMP390 并计算相对高度。 */
             float pressure = 0.0f, temperature = 0.0f;
             float altitude = 0.0f, rela_altitude = 0.0f;
 
@@ -535,29 +481,28 @@ int main(void)
                 temperature = data.temperature;
                 pressure    = data.pressure;
 
-                // 双级滤波
+                /* 气压先做滑动均值，再换算高度并滤除慢漂。 */
                 double filtered_pressure = moving_average_filter(pressure);
                 altitude = 44330.0 * (1.0 - pow(filtered_pressure / 101325.0, 0.190295));
                 double drift_free_alt = drift_filter(altitude);
                 rela_altitude = drift_free_alt - ref_altitude;
 
-                // PA0 按键 → 归零相对高度
                 if (key_flag) {
                     ref_altitude = drift_free_alt;
                     key_flag = 0;
                 }
             }
 
-            // ---- 读取磁力计（校准期间不额外读）----
+            /* 非校准状态下更新磁力计航向。 */
             if (calib_state == CALIB_IDLE && mag_ok) {
                 QMC5883P_UpdateYaw();
             }
 
-            // ---- 打包 + 发送给主飞控 ----
+            /* 打包并发送给主飞控。 */
             SensorPacket_t pkt;
             pkt.pressure      = pressure;
             pkt.temperature   = temperature;
-            pkt.altitude      = rela_altitude * 100.0f;  // 转为 cm
+            pkt.altitude      = rela_altitude * 100.0f;
             pkt.yaw           = QMC5883P_Yaw;
             pkt.flow_x        = OpticalFlow_Data.flow_x;
             pkt.flow_y        = OpticalFlow_Data.flow_y;
@@ -565,13 +510,13 @@ int main(void)
             pkt.flow_quality  = OpticalFlow_Data.signal_strength;
             USART2_SendPacket(&pkt);
 
-            // ---- OSD 图传数据更新 ----
-            OSD_DisplayInt(0, 7, 5, OpticalFlow_Data.distance);  // D:距离
-            OSD_DisplayFloat(1, 4, 3, 1, QMC5883P_Yaw); // YAW:航向
-            OSD_DisplayInt(15, 13, 4, (int)(temperature * 10));  // T:温度(x10)
-            OSD_DisplayFloat(14, 3, 1, 1, battery_voltage);  // V:电池电压
+            /* OSD 图传数据更新。 */
+            OSD_DisplayInt(0, 7, 5, OpticalFlow_Data.distance);
+            OSD_DisplayFloat(1, 4, 3, 1, QMC5883P_Yaw);
+            OSD_DisplayInt(15, 13, 4, (int)(temperature * 10));
+            OSD_DisplayFloat(14, 3, 1, 1, battery_voltage);
 
-            // ---- OLED 显示（BMP390错误也显示其他数据）----
+            /* OLED 调试显示。 */
             if (rslt == BMP3_OK) {
                 sprintf(buf, "T:%.1fC",  temperature);
                 OLED_ShowString(1, 1, buf);

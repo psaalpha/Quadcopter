@@ -1,103 +1,102 @@
 #include "stm32f10x.h"
 #include <math.h>
-#include "hubu.h"                  // Device header
+#include "hubu.h"
 
-// ====================== 全局变量：四轴电机PWM占空比（0~100%） ======================
+/* 四轴电机输出占空比，范围 0~100% */
 static float Motor_Duty_FrontLeft  = 0.0f;
 static float Motor_Duty_FrontRight = 0.0f;
 static float Motor_Duty_BackLeft   = 0.0f;
 static float Motor_Duty_BackRight  = 0.0f;
 
-// ====================== 四轴核心配置 ======================
+/* 控制器核心配置 */
 static float BASE_DUTY = 0.0f;   
 #define PWM_MAX            100.0f          
 #define PWM_MIN             0.0f           
 #define ANGLE_LIMIT        30.0f           
 #define YAW_ANGLE_LIMIT    180.0f          
-#define PID_SAMPLE_TIME    0.002f  // 2ms = 500Hz (内环频率)
+#define PID_SAMPLE_TIME    0.002f  /* 2ms = 500Hz 内环频率 */
 
-// ==================== 角速度低通滤波系数 ====================
-// hubu.c 中已用 GYRO_FILTER_ALPHA 对 gx/gy 做过滤波，此处不再重复
-// 设为 1.0f 即透传，如需额外滤波可调回 <1.0
+/* 角速度低通滤波系数。
+ * hubu.c 中已对 gx/gy 做过滤波，这里默认透传；如需二次滤波可设为 < 1.0f。
+ */
 #define GYRO_LPF_ALPHA 1.0f
 static float last_rollRate = 0;
 static float last_pitchRate = 0;
 static float last_yawRate = 0;
 
-// ====================== 【外环】角度环PID参数（仅P控制） ======================
-float Roll_Outer_Kp  =12.03f;   // 角度环P：决定响应快慢，太大震荡，太小迟钝
+/* 外环：角度环参数，当前仅使用 P 控制 */
+float Roll_Outer_Kp  =12.03f;   /* 决定响应快慢：过大易震荡，过小响应迟钝 */
 float Pitch_Outer_Kp = 6.03f;   
-float Yaw_Outer_Kp   = 5.72f;   // Yaw角度环P通常比Roll/Pitch小
+float Yaw_Outer_Kp   = 5.72f;   /* Yaw 外环 P 通常小于 Roll/Pitch */
 
-//外环输出的目标角速度
+/* 外环输出的目标角速度，供内环使用 */
 static float target_roll_rate  = 0.0f;
 static float target_pitch_rate = 0.0f;
 static float target_yaw_rate   = 0.0f;
-// ====================== 【内环】角速度环PID参数（完整PID） ======================
-// Roll 内环
-float Roll_Inner_Kp = 0.80f;   // 角速度环P：核心参数，抵消外环输出的角速度误差
-float Roll_Inner_Ki = 0.105f;  // 角速度环I：消除静态角速度误差（机械偏心）
-float Roll_Inner_Kd = 0.0018f;  // 角速度环D：抑制角速度震荡
+
+/* 内环：角速度环 PID 参数 */
+/* Roll 内环 */
+float Roll_Inner_Kp = 0.80f;    /* P：抵消目标角速度与实测角速度的误差 */
+float Roll_Inner_Ki = 0.105f;   /* I：消除机械偏心等造成的静态误差 */
+float Roll_Inner_Kd = 0.0018f;  /* D：抑制角速度震荡 */
 static float Roll_Inner_I_Limit = 5.0f;
 
-// Pitch 内环
+/* Pitch 内环 */
 float Pitch_Inner_Kp = 0.179f;
 float Pitch_Inner_Ki = 0.1058f;
 float Pitch_Inner_Kd = 0.001838f;
 static float Pitch_Inner_I_Limit = 5.0f;
 
-// Yaw 内环
+/* Yaw 内环 */
 float Yaw_Inner_Kp = 2.87f;
 float Yaw_Inner_Ki = 0.0251f;
 float Yaw_Inner_Kd = 0.0034444f;
 static float Yaw_Inner_I_Limit = 3.0f;
 
-// ====================== D项低通滤波系数 ====================
-// 0.0=最强滤波(延迟大), 1.0=无滤波。建议从0.3开始试，逐步提高
+/* D 项低通滤波系数：0.0=滤波最强但延迟最大，1.0=不滤波。 */
 #define DTERM_LPF_ALPHA 0.3f
 
-// ====================== PID缓存变量 ======================
-// 内环积分
+/* 内环积分项 */
 static float roll_rate_integral  = 0.0f;
 static float pitch_rate_integral = 0.0f;
 static float yaw_rate_integral   = 0.0f;
 
-// D项：存储上一帧陀螺仪原始值（D on measurement, not error）
+/* D on measurement：使用测量值差分，避免目标突变造成微分冲击 */
 static float last_roll_rate   = 0.0f;
 static float last_pitch_rate  = 0.0f;
 static float last_yaw_rate    = 0.0f;
 
-// D项低通滤波历史值
+/* D 项滤波历史值 */
 static float roll_d_filtered  = 0.0f;
 static float pitch_d_filtered = 0.0f;
 static float yaw_d_filtered   = 0.0f;
 
-// 最终输出给混控的值
+/* PID 输出，供电机混控使用 */
 float roll_pid_out;
 float pitch_pid_out;
 float yaw_pid_out;
 
-// 目标角度
+/* 遥控或上层控制给出的目标角度 */
 float target_roll  = 0.0f;
 float target_pitch = 0.0f;
 float target_yaw   = 0.0f;
 
-// 测试用
+/* 调试观测变量 */
 float yaw_err;
 float yaw_ceshi = 0;
 float Pitch_err;
 
-// ====================== 参数设置函数 ======================
+/* 参数设置接口 */
 void Set_Base_Duty(float value) {
     if(value >= 0.0f && value <= 100.0f) BASE_DUTY = value;
 }
 
-// 外环参数设置
+/* 外环参数设置 */
 void Roll_Outer_Kp_Get(float p)  { Roll_Outer_Kp = p; }
 void Pitch_Outer_Kp_Get(float p) { Pitch_Outer_Kp = p; }
 void Yaw_Outer_Kp_Get(float p)   { Yaw_Outer_Kp = p; }
 
-// 内环参数设置
+/* 内环参数设置 */
 void Roll_Inner_Kp_Get(float p)  { Roll_Inner_Kp = p; }
 void Roll_Inner_Ki_Get(float p)  { Roll_Inner_Ki = p; }
 void Roll_Inner_Kd_Get(float d)  { Roll_Inner_Kd = d; }
@@ -122,38 +121,37 @@ float Yaw_pid_Get(void) { return yaw_ceshi; }
 
 void Drone_Outer_Angle_PID_Control(float current_roll, float current_pitch, float current_yaw)
 {
-    // ==================== 角度限幅 ====================
+    /* 角度测量限幅，避免异常姿态值直接放大到外环输出 */
     if(current_roll > ANGLE_LIMIT) current_roll = ANGLE_LIMIT;
     else if(current_roll < -ANGLE_LIMIT) current_roll = -ANGLE_LIMIT;
     
     if(current_pitch > ANGLE_LIMIT) current_pitch = ANGLE_LIMIT;
     else if(current_pitch < -ANGLE_LIMIT) current_pitch = -ANGLE_LIMIT;
 
-    // ==================== 角度环（纯P控制） ====================
-    // 计算角度误差
+    /* 角度外环：目标角度与当前角度的误差，经 P 控制转为目标角速度 */
     float roll_angle_err  =  target_roll - current_roll;
     float pitch_angle_err = target_pitch - current_pitch;
     Pitch_err = pitch_angle_err;
     
-    // Yaw角跨零处理
+    /* Yaw 角跨 0/360 度处理，保证走最短角度误差 */
     yaw_err = target_yaw - current_yaw;
     if(yaw_err > 180.0f)  yaw_err -= 360.0f;
     if(yaw_err < -180.0f) yaw_err += 360.0f;
 
-    // 外环输出 = 目标角速度，缓存到全局变量供内环使用
+    /* 外环输出目标角速度，缓存给内环 */
     target_roll_rate  = Roll_Outer_Kp * roll_angle_err;
     target_pitch_rate = Pitch_Outer_Kp * pitch_angle_err;
     target_yaw_rate   = Yaw_Outer_Kp * yaw_err;
 }
 
 /**
- * @brief  【拆分后】内环：角速度环控制函数（高频调用，例如500Hz/2ms）
- * @param  rollRate/pitchRate/yawRate: 当前陀螺仪原始角速度数据
- * @note   该函数负责根据外环输出的目标角速度，计算电机控制量并更新PWM占空比
+ * @brief  角速度内环控制函数，高频调用，例如 500Hz/2ms。
+ * @param  rollRate/pitchRate/yawRate 当前陀螺仪角速度。
+ * @note   根据外环输出的目标角速度计算 PID 控制量，并更新混控输出。
  */
 void Drone_Inner_Rate_PID_Control(float rollRate, float pitchRate, float yawRate)
 {
-    // ==================== 角速度低通滤波（原有逻辑完全保留） ====================
+    /* 角速度低通滤波 */
     float filtered_rollRate  = GYRO_LPF_ALPHA * rollRate  + (1 - GYRO_LPF_ALPHA) * last_rollRate;
     float filtered_pitchRate = GYRO_LPF_ALPHA * pitchRate + (1 - GYRO_LPF_ALPHA) * last_pitchRate;
     float filtered_yawRate   = GYRO_LPF_ALPHA * yawRate   + (1 - GYRO_LPF_ALPHA) * last_yawRate;
@@ -162,43 +160,40 @@ void Drone_Inner_Rate_PID_Control(float rollRate, float pitchRate, float yawRate
     last_pitchRate = filtered_pitchRate;
     last_yawRate   = filtered_yawRate;
 
-    // ==================== 停机保护（原有逻辑完全保留） ====================
+    /* 停机保护：油门很低时清空控制输出和积分，避免再次启动时积分残留 */
     if(BASE_DUTY <= 1)
     {
         pitch_pid_out = 0;
         yaw_pid_out = 0;
         roll_pid_out = 0;
-        // 停机时清空积分，防止累积
         roll_rate_integral = 0; 
         pitch_rate_integral = 0; 
         yaw_rate_integral = 0;
     }
     else
     {
-        // ==================== 内环：角速度环（PID控制） ====================
-        // --- Roll 内环 ---
+        /* Roll 内环 */
         float roll_rate_err = filtered_rollRate - target_roll_rate;
         
-        // P项
+        /* P 项 */
         float roll_inner_p = Roll_Inner_Kp * roll_rate_err;
         
-        // I项（积分分离：误差穿越0时清零积分，防震荡）
+        /* I 项：误差穿越 0 时清空积分，降低过冲和震荡 */
         roll_rate_integral += Roll_Inner_Ki * roll_rate_err * PID_SAMPLE_TIME;
         if((roll_rate_err > 0 && roll_rate_integral < 0) ||
            (roll_rate_err < 0 && roll_rate_integral > 0))
-            roll_rate_integral = 0;  // 误差过零，清积分
+            roll_rate_integral = 0;
         if(roll_rate_integral > Roll_Inner_I_Limit) roll_rate_integral = Roll_Inner_I_Limit;
         else if(roll_rate_integral < -Roll_Inner_I_Limit) roll_rate_integral = -Roll_Inner_I_Limit;
         
-        // D项：基于陀螺仪测量值（而非误差），避免微分踢
+        /* D 项：基于陀螺仪测量值差分，而不是误差差分 */
         float roll_d_raw = Roll_Inner_Kd * (last_roll_rate - filtered_rollRate) / PID_SAMPLE_TIME;
         last_roll_rate = filtered_rollRate;
-        // D项一阶低通滤波
         roll_d_filtered = DTERM_LPF_ALPHA * roll_d_raw + (1.0f - DTERM_LPF_ALPHA) * roll_d_filtered;
         
         roll_pid_out = roll_inner_p + roll_rate_integral + roll_d_filtered;
 
-        // --- Pitch 内环 ---
+        /* Pitch 内环 */
         float pitch_rate_err = filtered_pitchRate - target_pitch_rate;
         
         float pitch_inner_p = Pitch_Inner_Kp * pitch_rate_err;
@@ -216,10 +211,10 @@ void Drone_Inner_Rate_PID_Control(float rollRate, float pitchRate, float yawRate
         
         pitch_pid_out = pitch_inner_p + pitch_rate_integral + pitch_d_filtered;
 
-        // --- Yaw 内环 ---
-        // 注意：Yaw 误差 = target - measured，与 Roll/Pitch 的 measured - target 相反
-        // 这是因为混控公式中 yaw_pid_out 对 FL+BR 是 +、对 FR+BL 是 -
-        // 当 drone 右转(正 yawRate)需抑制时，target=0, error=-filtered → yaw_pid_out 为负 → FL+BR 减速 ✓
+        /* Yaw 内环。
+         * 注意：Yaw 误差 = target - measured，与 Roll/Pitch 的 measured - target 相反。
+         * 这是为了匹配 yaw 混控方向：yaw_pid_out 对 FL/BR 为正，对 FR/BL 为负。
+         */
         float yaw_rate_err = target_yaw_rate - filtered_yawRate;
         
         float yaw_inner_p = Yaw_Inner_Kp * yaw_rate_err;
@@ -239,13 +234,16 @@ void Drone_Inner_Rate_PID_Control(float rollRate, float pitchRate, float yawRate
         yaw_ceshi = yaw_pid_out;
     }
     
-    // ==================== 电机混控输出 ====================
-	Motor_Duty_FrontLeft  = BASE_DUTY + pitch_pid_out - roll_pid_out;// + yaw_pid_out		  //0到100范围
-    Motor_Duty_FrontRight = BASE_DUTY + pitch_pid_out + roll_pid_out;// - yaw_pid_out         //
-    Motor_Duty_BackLeft   = BASE_DUTY - pitch_pid_out - roll_pid_out;// - yaw_pid_out         //
-    Motor_Duty_BackRight  = BASE_DUTY - pitch_pid_out + roll_pid_out;// + yaw_pid_out         //
+    /* 电机混控输出。
+     * 目前 yaw 混控项暂未启用，右侧注释中的 +/- yaw_pid_out 是功能性预留，
+     * 后续确认电机旋向和螺旋桨方向后可恢复到混控公式中。
+     */
+	Motor_Duty_FrontLeft  = BASE_DUTY + pitch_pid_out - roll_pid_out;// + yaw_pid_out
+    Motor_Duty_FrontRight = BASE_DUTY + pitch_pid_out + roll_pid_out;// - yaw_pid_out
+    Motor_Duty_BackLeft   = BASE_DUTY - pitch_pid_out - roll_pid_out;// - yaw_pid_out
+    Motor_Duty_BackRight  = BASE_DUTY - pitch_pid_out + roll_pid_out;// + yaw_pid_out
 
-    // ==================== PWM占空比限幅100 ====================
+    /* 输出限幅 */
     if(Motor_Duty_FrontLeft > PWM_MAX) Motor_Duty_FrontLeft = PWM_MAX;
     else if(Motor_Duty_FrontLeft < PWM_MIN) Motor_Duty_FrontLeft = PWM_MIN;
     
@@ -259,14 +257,13 @@ void Drone_Inner_Rate_PID_Control(float rollRate, float pitchRate, float yawRate
     else if(Motor_Duty_BackRight < PWM_MIN) Motor_Duty_BackRight = PWM_MIN;
 }
 
-// ====================== 获取电机占空比（映射 0~100 → 500~1000） ======================
-//
+/* 获取电机 PWM 比较值：0~100% 映射为 500~1000 */
 uint16_t Get_Motor_Duty_FrontLeft(void)  { return (uint16_t)(500.0f + Motor_Duty_FrontLeft  * 5.0f); }
 uint16_t Get_Motor_Duty_FrontRight(void) { return (uint16_t)(500.0f + Motor_Duty_FrontRight * 5.0f); }
 uint16_t Get_Motor_Duty_BackLeft(void)   { return (uint16_t)(500.0f + Motor_Duty_BackLeft   * 5.0f); }
 uint16_t Get_Motor_Duty_BackRight(void)  { return (uint16_t)(500.0f + Motor_Duty_BackRight  * 5.0f); }
 
-// ====================== 重置PID积分 ======================
+/* 重置 PID 积分和 D 项历史值 */
 void Drone_PID_Reset(void)
 {
     roll_rate_integral  = 0.0f;
@@ -282,15 +279,15 @@ void Drone_PID_Reset(void)
 
 
 
-// ====================== 兼容旧代码的接口函数（解决 L6218E 报错） ======================
-// 你的 main.c 中还在调用旧的单环函数名，这里补上定义。
-// 注意：现在是串级PID，旧函数默认映射到【内环角速度】参数（可根据需要自行修改映射）
+/* 兼容旧调参接口。
+ * 当前已经改为串级 PID，旧函数默认映射到内环角速度参数。
+ */
 
-void Pitch_Kp_Get(float p) { Pitch_Inner_Kp = p; } // 如果你希望遥控器调的是角度环，可改为 Pitch_Outer_Kp = p;
+void Pitch_Kp_Get(float p) { Pitch_Inner_Kp = p; }
 void Pitch_Ki_Get(float p) { Pitch_Inner_Ki = p; }
 void Pitch_Kd_Get(float d) { Pitch_Inner_Kd = d; }
 
-void Roll_Kp_Get(float p)  { Roll_Inner_Kp = p; }  // 如果你希望遥控器调的是角度环，可改为 Roll_Outer_Kp = p;
+void Roll_Kp_Get(float p)  { Roll_Inner_Kp = p; }
 void Roll_Ki_Get(float p)  { Roll_Inner_Ki = p; }
 void Roll_Kd_Get(float d)  { Roll_Inner_Kd = d; }
 

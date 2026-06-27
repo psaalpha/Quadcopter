@@ -1,9 +1,9 @@
 /**
   ******************************************************************************
   * @file    SlaveMCU.c
-  * @brief   从机传感器 USART3 DMA+IDLE 接收驱动
+  * @brief   从控传感器 USART3 DMA+IDLE 接收驱动。
   *
-  *          USART3 部分重映射: PC10(TX) / PC11(RX)
+  *          USART3 默认引脚: PB10(TX) / PB11(RX)
   *          波特率: 115200, 8N1
   *          DMA1_Channel3: 环形缓冲区接收
   *          IDLE 中断: 检测帧结束，触发解析
@@ -25,7 +25,7 @@
 #define SLAVE_DMA_BUF_SIZE  256u       /* DMA 环形缓冲区 */
 
 /* ============================================
- * 全局传感器数据实例
+ * 全局从控传感器数据实例
  * ============================================ */
 SlaveSensor_t slave;
 
@@ -44,7 +44,7 @@ static void Slave_ParsePacket(const uint8_t *raw);
 static void Slave_TryExtractFrame(void);
 
 /* ============================================
- * SlaveMCU_Init
+ * 初始化从控数据接收链路。
  * ============================================ */
 void SlaveMCU_Init(void)
 {
@@ -56,8 +56,7 @@ void SlaveMCU_Init(void)
 }
 
 /* ============================================
- * GPIO: USART3 默认引脚 PB10(TX) / PB11(RX)
- *       Key.c 已删除，PB11 无冲突，无需重映射
+ * GPIO: USART3 默认引脚 PB10(TX) / PB11(RX)。
  * ============================================ */
 static void Slave_GPIO_Config(void)
 {
@@ -85,7 +84,7 @@ static void Slave_USART_Config(void)
     USART_InitTypeDef USART_InitStructure;
     NVIC_InitTypeDef  NVIC_InitStructure;
 
-    /* 开启 USART3 时钟（APB1） */
+    /* USART3 位于 APB1。 */
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART3, ENABLE);
 
     USART_StructInit(&USART_InitStructure);
@@ -103,10 +102,10 @@ static void Slave_USART_Config(void)
     /* 开启 IDLE 中断（总线空闲检测） */
     USART_ITConfig(USART3, USART_IT_IDLE, ENABLE);
 
-    /* NVIC: 抢占2 响应2（低于 TIM2=1,1 和 TIM3=2,2，不干扰飞控时序） */
+    /* 优先级低于姿态控制相关定时器，避免影响飞控时序。 */
     NVIC_InitStructure.NVIC_IRQChannel                   = USART3_IRQn;
     NVIC_InitStructure.NVIC_IRQChannelCmd                = ENABLE;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 3;  /* 低于 TIM3(2,2)，不抢角度环 */
+    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 3;
     NVIC_InitStructure.NVIC_IRQChannelSubPriority        = 1;
     NVIC_Init(&NVIC_InitStructure);
 
@@ -142,8 +141,8 @@ static void Slave_DMA_Config(void)
 
 /* ============================================
  * USART3 中断服务函数
- * IDLE 中断 → 帧接收完毕 → 直接提取末尾 30 字节解析
- * 不再使用状态机，避免 payload 中 0xA5 导致误同步
+ * IDLE 中断表示一帧接收结束，直接提取末尾 30 字节解析。
+ * 这样避免 payload 中出现 0xA5 时造成状态机误同步。
  * ============================================ */
 void USART3_IRQHandler(void)
 {
@@ -156,7 +155,7 @@ void USART3_IRQHandler(void)
 
         Slave_TryExtractFrame();
 
-        /* 重置 DMA 到 buf[0]，避免长期运行游标错位 */
+        /* 复位 DMA 接收位置，避免长期运行后游标错位。 */
         DMA_Cmd(DMA1_Channel3, DISABLE);
         DMA_SetCurrDataCounter(DMA1_Channel3, SLAVE_DMA_BUF_SIZE);
         DMA_Cmd(DMA1_Channel3, ENABLE);
@@ -164,8 +163,7 @@ void USART3_IRQHandler(void)
 }
 
 /* ============================================
- * 从 DMA 环形缓冲区直接提取最后一帧（30 字节）
- * IDLE 中断保证帧已完整接收，无需状态机
+ * 从 DMA 缓冲区直接提取最新一帧（30 字节）。
  * ============================================ */
 static void Slave_TryExtractFrame(void)
 {
@@ -228,14 +226,14 @@ static void Slave_ParsePacket(const uint8_t *raw)
     flow_distance = *(uint16_t *)(&raw[26]);
     flow_quality  = raw[28];
 
-    /* 原子更新全局结构体（单次写入，主循环读取不会撕裂） */
-    slave.baro_altitude = altitude;                     // 气压计高度 (cm)
-    slave.mag_yaw       = yaw;                          // 磁力计航向 (0~360°)
-    slave.flow_x        = flow_x;                       // 光流 X 原始值
-    slave.flow_y        = flow_y;                       // 光流 Y 原始值
-    slave.flow_distance = flow_distance;                // 光流测距 (mm)
-    slave.flow_quality  = flow_quality;                 // 信号强度 (0~100)
-    slave.flow_altitude = (float)flow_distance / 10.0f; // mm → cm
+    /* 更新全局结构体，主循环通过 updated 标志读取。 */
+    slave.baro_altitude = altitude;
+    slave.mag_yaw       = yaw;
+    slave.flow_x        = flow_x;
+    slave.flow_y        = flow_y;
+    slave.flow_distance = flow_distance;
+    slave.flow_quality  = flow_quality;
+    slave.flow_altitude = (float)flow_distance / 10.0f;
 
-    slave.updated = 1;  /* 通知主循环有新数据 */
+    slave.updated = 1;
 }

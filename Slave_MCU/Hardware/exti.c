@@ -1,7 +1,7 @@
-#include "stm32f10x.h"                  // Device header
+#include "stm32f10x.h"
 #include "misc.h"
 
-// ȫ�ֱ�־������������ʱ����Ҫ����ѭ��������ο����� volatile uint8_t key_pressed_flag = 0;
+/* PA0 按键中断标志，主循环检测后用于归零相对高度。 */
 volatile uint8_t key_flag = 0;
 
 void EXTI_Key_Init(void)
@@ -10,26 +10,26 @@ void EXTI_Key_Init(void)
     EXTI_InitTypeDef EXTI_InitStruct;
     NVIC_InitTypeDef NVIC_InitStruct;
 
-    // 1. ʱ��ʹ��
+    /* 使能 GPIOA 和 AFIO 时钟。 */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_AFIO, ENABLE);
 
-    // 2. GPIO ���ã�PA0 ��������
+    /* PA0 配置为上拉输入。 */
     GPIO_InitStruct.GPIO_Pin = GPIO_Pin_0;
     GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IPU;
     GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
     GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-    // 3. �� PA0 ӳ�䵽 EXTI Line0
+    /* 将 PA0 映射到 EXTI0。 */
     GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource0);
 
-    // 4. EXTI ���ã��½��ش���
+    /* 下降沿触发外部中断。 */
     EXTI_InitStruct.EXTI_Line = EXTI_Line0;
     EXTI_InitStruct.EXTI_Mode = EXTI_Mode_Interrupt;
-    EXTI_InitStruct.EXTI_Trigger = EXTI_Trigger_Falling;   // ����ʱ�½���
+    EXTI_InitStruct.EXTI_Trigger = EXTI_Trigger_Falling;
     EXTI_InitStruct.EXTI_LineCmd = ENABLE;
     EXTI_Init(&EXTI_InitStruct);
 
-    // 5. NVIC ���ã����ȼ����ɸ�����Ҫ������
+    /* NVIC 优先级配置。 */
     NVIC_InitStruct.NVIC_IRQChannel = EXTI0_IRQn;
     NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 1;
     NVIC_InitStruct.NVIC_IRQChannelSubPriority = 0;
@@ -40,10 +40,9 @@ void EXTI0_IRQHandler(void)
 {
     if (EXTI_GetITStatus(EXTI_Line0) != RESET)
     {
-        // ���ñ�־������ѭ��ִ������������������ж��д��������߼���
+        /* 中断中只置位标志，具体归零动作放在主循环处理。 */
         key_flag = 1;
         
-        // ����жϱ�־
         EXTI_ClearITPendingBit(EXTI_Line0);
     }
 }

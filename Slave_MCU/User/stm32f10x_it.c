@@ -157,7 +157,7 @@ void TIM2_IRQHandler(void)
     {
         TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
         
-        // 置位100ms标志，通知主循环读取传感器
+        /* 置位定时标志，通知主循环读取传感器。 */
         timer_100ms_flag = 1;
     }
 }
