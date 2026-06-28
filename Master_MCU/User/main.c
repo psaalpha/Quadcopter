@@ -19,8 +19,8 @@
 /* 中断和主循环共享的数据 */
 uint8_t  C=0;
 int16_t AX, AY, AZ, GX, GY, GZ;
-float roll,pitch,yaw;
-float rollRate,pitchRate,yawRate;
+volatile float roll,pitch,yaw;
+volatile float rollRate,pitchRate,yawRate;
 float temp;
 long press;
 float absAlt, relAlt;
@@ -42,7 +42,7 @@ uint16_t down_cnt = 0;            /* 降油门周期计数 */
 volatile uint8_t angle_update_flag = 0;
 volatile uint8_t angle_rate_update_flag=0;
 volatile uint8_t crsf_tick = 0;         /* TIM1 触发 CRSF 解析 */
-uint8_t PWM_Flag=0;						/* PWM 更新标志 */
+volatile uint8_t PWM_Flag=0;						/* PWM 更新标志 */
 
 /* 主控侧 QMC5883P 变量：当前主运行路径中磁力计数据来自从控 */
 uint8_t qmc_init_ok = 0;        /* QMC 初始化状态：0=失败，1=成功 */
@@ -67,6 +67,7 @@ int16_t rc_yaw   = 0;       /* CH3 映射 ±900 */
 /* 从控传感器数据副本，由 slave.updated 触发刷新 */
 int32_t  s_flow_x, s_flow_y;       /* 光流 X/Y 原始值 */
 uint16_t s_flow_dist;              /* 光流测距 (mm) */
+float    s_flow_alt;               /* 光流测距高度 (cm) */
 float    s_baro_alt;               /* 气压高度 (cm) */
 float    s_mag_yaw;                /* 磁力计航向 (0~360°) */
 
@@ -141,8 +142,18 @@ int main(void)
 		IWDG_ReloadCounter();
 		if(angle_update_flag == 1)
 		{
-			Drone_Outer_Angle_PID_Control(roll,pitch,yaw);
-			angle_update_flag = 0; 
+			float roll_snapshot;
+			float pitch_snapshot;
+			float yaw_snapshot;
+
+			__disable_irq();
+			roll_snapshot = roll;
+			pitch_snapshot = pitch;
+			yaw_snapshot = yaw;
+			angle_update_flag = 0;
+			__enable_irq();
+
+			Drone_Outer_Angle_PID_Control(roll_snapshot,pitch_snapshot,yaw_snapshot);
 			Receive_loss++;
 		}
 		else
@@ -151,8 +162,18 @@ int main(void)
 		}
 		if(angle_rate_update_flag == 1)
 		{
-			Drone_Inner_Rate_PID_Control(rollRate,pitchRate,yawRate);
+			float roll_rate_snapshot;
+			float pitch_rate_snapshot;
+			float yaw_rate_snapshot;
+
+			__disable_irq();
+			roll_rate_snapshot = rollRate;
+			pitch_rate_snapshot = pitchRate;
+			yaw_rate_snapshot = yawRate;
 			angle_rate_update_flag = 0;
+			__enable_irq();
+
+			Drone_Inner_Rate_PID_Control(roll_rate_snapshot,pitch_rate_snapshot,yaw_rate_snapshot);
 		}
 		if(PWM_Flag==1)
 		{			
@@ -246,12 +267,31 @@ LED1_ON();
 	/* 从控数据刷新：主循环每轮检查一次 */
 	if(slave.updated)
 	{
+		int32_t flow_x_snapshot;
+		int32_t flow_y_snapshot;
+		uint16_t flow_dist_snapshot;
+		float flow_alt_snapshot;
+		float baro_alt_snapshot;
+		float mag_yaw_snapshot;
+
+		__disable_irq();
 		slave.updated = 0;
-		s_flow_x   = slave.flow_x;
-		s_flow_y   = slave.flow_y;
-		s_flow_dist = slave.flow_distance;
-		s_baro_alt = slave.baro_altitude;
-		s_mag_yaw  = slave.mag_yaw;
+		flow_x_snapshot = slave.flow_x;
+		flow_y_snapshot = slave.flow_y;
+		flow_dist_snapshot = slave.flow_distance;
+		flow_alt_snapshot = slave.flow_altitude;
+		baro_alt_snapshot = slave.baro_altitude;
+		mag_yaw_snapshot = slave.mag_yaw;
+		__enable_irq();
+
+		s_flow_x   = flow_x_snapshot;
+		s_flow_y   = flow_y_snapshot;
+		s_flow_dist = flow_dist_snapshot;
+		s_flow_alt = flow_alt_snapshot;
+		s_baro_alt = baro_alt_snapshot;
+		s_mag_yaw  = mag_yaw_snapshot;
+
+		Drone_Altitude_Position_PID_Control(s_flow_alt, s_flow_x, s_flow_y);
 	}
 
 		PID_Param_Parse();
@@ -272,8 +312,15 @@ void TIM2_IRQHandler(void)
 {
 	if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
 	{
+		float roll_rate_tmp;
+		float pitch_rate_tmp;
+		float yaw_rate_tmp;
+
 		CompFilter_Simple();             
-		Get_Gyro(&rollRate,&pitchRate,&yawRate);
+		Get_Gyro(&roll_rate_tmp,&pitch_rate_tmp,&yaw_rate_tmp);
+		rollRate = roll_rate_tmp;
+		pitchRate = pitch_rate_tmp;
+		yawRate = yaw_rate_tmp;
 		angle_rate_update_flag = 1;
 		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
 	}
@@ -284,7 +331,14 @@ void TIM3_IRQHandler(void)
 {
 	if (TIM_GetITStatus(TIM3, TIM_IT_Update) != RESET)
 	{
-		Get_Angle(&roll,&pitch,&yaw);
+		float roll_tmp;
+		float pitch_tmp;
+		float yaw_tmp;
+
+		Get_Angle(&roll_tmp,&pitch_tmp,&yaw_tmp);
+		roll = roll_tmp;
+		pitch = pitch_tmp;
+		yaw = yaw_tmp;
 		angle_update_flag = 1;
 		TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
 	}

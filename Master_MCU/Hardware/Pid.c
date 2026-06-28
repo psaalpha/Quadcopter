@@ -56,6 +56,13 @@ static float Yaw_Inner_I_Limit = 3.0f;
 /* D 项低通滤波系数：0.0=滤波最强但延迟最大，1.0=不滤波。 */
 #define DTERM_LPF_ALPHA 0.3f
 
+/* Altitude and optical-flow position PID run from slave sensor updates. */
+#define NAV_PID_SAMPLE_TIME      0.02f
+#define ALTITUDE_I_LIMIT        10.0f
+#define ALTITUDE_OUT_LIMIT      20.0f
+#define POSITION_I_LIMIT         5.0f
+#define POSITION_ANGLE_LIMIT    10.0f
+
 /* 内环积分项 */
 static float roll_rate_integral  = 0.0f;
 static float pitch_rate_integral = 0.0f;
@@ -86,6 +93,38 @@ float yaw_err;
 float yaw_ceshi = 0;
 float Pitch_err;
 
+/* Altitude hold PID: output is throttle correction in duty percent. */
+float Altitude_Kp = 0.0f;
+float Altitude_Ki = 0.0f;
+float Altitude_Kd = 0.0f;
+static float target_altitude_cm = 0.0f;
+static float altitude_integral = 0.0f;
+static float last_altitude_err = 0.0f;
+static float altitude_pid_out = 0.0f;
+
+/* Optical-flow position PID: outputs are suggested angle corrections. */
+float Position_X_Kp = 0.0f;
+float Position_X_Ki = 0.0f;
+float Position_X_Kd = 0.0f;
+float Position_Y_Kp = 0.0f;
+float Position_Y_Ki = 0.0f;
+float Position_Y_Kd = 0.0f;
+static int32_t target_flow_x = 0;
+static int32_t target_flow_y = 0;
+static float position_x_integral = 0.0f;
+static float position_y_integral = 0.0f;
+static float last_position_x_err = 0.0f;
+static float last_position_y_err = 0.0f;
+static float position_roll_aim = 0.0f;
+static float position_pitch_aim = 0.0f;
+
+static float Limit_Float(float value, float min, float max)
+{
+    if(value > max) return max;
+    if(value < min) return min;
+    return value;
+}
+
 /* 参数设置接口 */
 void Set_Base_Duty(float value) {
     if(value >= 0.0f && value <= 100.0f) BASE_DUTY = value;
@@ -112,10 +151,67 @@ void Yaw_Inner_Kd_Get(float d)   { Yaw_Inner_Kd = d; }
 void Pitch_aim_Get(float d) { target_pitch = d; }
 void Roll_aim_Get(float d)  { target_roll = d; }
 void Yaw_aim_Get(float d)   { target_yaw = d; }
+void Altitude_aim_Get(float d) { target_altitude_cm = d; }
+void Position_aim_Get(int32_t x, int32_t y)
+{
+    target_flow_x = x;
+    target_flow_y = y;
+}
+
+void Altitude_Kp_Get(float p) { Altitude_Kp = p; }
+void Altitude_Ki_Get(float p) { Altitude_Ki = p; }
+void Altitude_Kd_Get(float d) { Altitude_Kd = d; }
+void Position_X_Kp_Get(float p) { Position_X_Kp = p; }
+void Position_X_Ki_Get(float p) { Position_X_Ki = p; }
+void Position_X_Kd_Get(float d) { Position_X_Kd = d; }
+void Position_Y_Kp_Get(float p) { Position_Y_Kp = p; }
+void Position_Y_Ki_Get(float p) { Position_Y_Ki = p; }
+void Position_Y_Kd_Get(float d) { Position_Y_Kd = d; }
 
 float Pitch_err_Get(void) { return Pitch_err; }
 float Yaw_err_Get(void) { return yaw_err; }
 float Yaw_pid_Get(void) { return yaw_ceshi; }
+float Altitude_pid_Get(void) { return altitude_pid_out; }
+float Position_roll_aim_Get(void) { return position_roll_aim; }
+float Position_pitch_aim_Get(void) { return position_pitch_aim; }
+
+void Drone_Altitude_Position_PID_Control(float current_altitude_cm, int32_t flow_x, int32_t flow_y)
+{
+    float altitude_err = target_altitude_cm - current_altitude_cm;
+    altitude_integral += Altitude_Ki * altitude_err * NAV_PID_SAMPLE_TIME;
+    altitude_integral = Limit_Float(altitude_integral, -ALTITUDE_I_LIMIT, ALTITUDE_I_LIMIT);
+
+    float altitude_d = Altitude_Kd * (altitude_err - last_altitude_err) / NAV_PID_SAMPLE_TIME;
+    last_altitude_err = altitude_err;
+    altitude_pid_out = Altitude_Kp * altitude_err + altitude_integral + altitude_d;
+    altitude_pid_out = Limit_Float(altitude_pid_out, -ALTITUDE_OUT_LIMIT, ALTITUDE_OUT_LIMIT);
+
+    float position_x_err = (float)(target_flow_x - flow_x);
+    position_x_integral += Position_X_Ki * position_x_err * NAV_PID_SAMPLE_TIME;
+    position_x_integral = Limit_Float(position_x_integral, -POSITION_I_LIMIT, POSITION_I_LIMIT);
+    float position_x_d = Position_X_Kd * (position_x_err - last_position_x_err) / NAV_PID_SAMPLE_TIME;
+    last_position_x_err = position_x_err;
+    position_roll_aim = Position_X_Kp * position_x_err + position_x_integral + position_x_d;
+    position_roll_aim = Limit_Float(position_roll_aim, -POSITION_ANGLE_LIMIT, POSITION_ANGLE_LIMIT);
+
+    float position_y_err = (float)(target_flow_y - flow_y);
+    position_y_integral += Position_Y_Ki * position_y_err * NAV_PID_SAMPLE_TIME;
+    position_y_integral = Limit_Float(position_y_integral, -POSITION_I_LIMIT, POSITION_I_LIMIT);
+    float position_y_d = Position_Y_Kd * (position_y_err - last_position_y_err) / NAV_PID_SAMPLE_TIME;
+    last_position_y_err = position_y_err;
+    position_pitch_aim = Position_Y_Kp * position_y_err + position_y_integral + position_y_d;
+    position_pitch_aim = Limit_Float(position_pitch_aim, -POSITION_ANGLE_LIMIT, POSITION_ANGLE_LIMIT);
+
+    if(BASE_DUTY <= 1)
+    {
+        altitude_integral = 0.0f;
+        position_x_integral = 0.0f;
+        position_y_integral = 0.0f;
+        altitude_pid_out = 0.0f;
+        position_roll_aim = 0.0f;
+        position_pitch_aim = 0.0f;
+    }
+}
 
 
 
@@ -234,14 +330,11 @@ void Drone_Inner_Rate_PID_Control(float rollRate, float pitchRate, float yawRate
         yaw_ceshi = yaw_pid_out;
     }
     
-    /* 电机混控输出。
-     * 目前 yaw 混控项暂未启用，右侧注释中的 +/- yaw_pid_out 是功能性预留，
-     * 后续确认电机旋向和螺旋桨方向后可恢复到混控公式中。
-     */
-	Motor_Duty_FrontLeft  = BASE_DUTY + pitch_pid_out - roll_pid_out;// + yaw_pid_out
-    Motor_Duty_FrontRight = BASE_DUTY + pitch_pid_out + roll_pid_out;// - yaw_pid_out
-    Motor_Duty_BackLeft   = BASE_DUTY - pitch_pid_out - roll_pid_out;// - yaw_pid_out
-    Motor_Duty_BackRight  = BASE_DUTY - pitch_pid_out + roll_pid_out;// + yaw_pid_out
+    /* Motor mix output, with yaw correction enabled. */
+	Motor_Duty_FrontLeft  = BASE_DUTY + pitch_pid_out - roll_pid_out + yaw_pid_out;
+    Motor_Duty_FrontRight = BASE_DUTY + pitch_pid_out + roll_pid_out - yaw_pid_out;
+    Motor_Duty_BackLeft   = BASE_DUTY - pitch_pid_out - roll_pid_out - yaw_pid_out;
+    Motor_Duty_BackRight  = BASE_DUTY - pitch_pid_out + roll_pid_out + yaw_pid_out;
 
     /* 输出限幅 */
     if(Motor_Duty_FrontLeft > PWM_MAX) Motor_Duty_FrontLeft = PWM_MAX;
@@ -275,6 +368,15 @@ void Drone_PID_Reset(void)
     roll_d_filtered     = 0.0f;
     pitch_d_filtered    = 0.0f;
     yaw_d_filtered      = 0.0f;
+    altitude_integral   = 0.0f;
+    position_x_integral = 0.0f;
+    position_y_integral = 0.0f;
+    last_altitude_err   = 0.0f;
+    last_position_x_err = 0.0f;
+    last_position_y_err = 0.0f;
+    altitude_pid_out    = 0.0f;
+    position_roll_aim   = 0.0f;
+    position_pitch_aim  = 0.0f;
 }
 
 
