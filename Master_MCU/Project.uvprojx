@@ -830,6 +830,16 @@
               <FileType>5</FileType>
               <FilePath>..\Shared\Protocol\inter_mcu_protocol.h</FilePath>
             </File>
+            <File>
+              <FileName>ground_station_protocol.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Protocol\ground_station_protocol.c</FilePath>
+            </File>
+            <File>
+              <FileName>ground_station_protocol.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Protocol\ground_station_protocol.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -979,6 +989,16 @@
               <FileName>parameter_persistence.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\Shared\Services\parameter_persistence.h</FilePath>
+            </File>
+            <File>
+              <FileName>ground_station_service.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Services\ground_station_service.c</FilePath>
+            </File>
+            <File>
+              <FileName>ground_station_service.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Services\ground_station_service.h</FilePath>
             </File>
           </Files>
         </Group>

@@ -1,5 +1,8 @@
 # 主从传感器协议
 
+本文只描述 Master/Slave 之间的传感器链路。面向调参与状态读取的外部接口见
+[地面站通信协议](GROUND_STATION_PROTOCOL.md)，两套协议独立版本化。
+
 ## 物理链路
 
 - Slave：USART2 TX，PA2

@@ -191,3 +191,17 @@ target_include_directories(
     PRIVATE
     ../../Shared/Services
 )
+
+add_quadcopter_host_test(
+    ground_station_protocol_test
+    ground_station_protocol
+    test_ground_station_protocol.c
+    ../../Shared/Protocol/ground_station_protocol.c
+    ../../Shared/Services/ground_station_service.c
+)
+target_include_directories(
+    ground_station_protocol_test
+    PRIVATE
+    ../../Shared/Protocol
+    ../../Shared/Services
+)

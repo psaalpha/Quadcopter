@@ -92,6 +92,7 @@ Keil/ARMCC 双目标构建：
 - [自动测试说明](docs/TESTING.md)
 - [硬件资源与引脚](docs/PINOUT.md)
 - [主从通信协议](docs/PROTOCOL.md)
+- [地面站通信协议](docs/GROUND_STATION_PROTOCOL.md)
 - [安全状态机](docs/SAFETY.md)
 - [系统可靠性设计](docs/SYSTEM_RELIABILITY.md)
 - [运行维护手册](docs/MAINTENANCE.md)

@@ -12,6 +12,7 @@
 6. [HAL 抽象设计](HAL.md)：理解设备驱动、HAL、BSP 和测试替身的关系。
    完整总线和定时器契约见 [HAL 总体设计](HAL_DESIGN.md)。
 7. [主从通信协议](PROTOCOL.md)：理解双 MCU 数据交换。
+   面向上位机的稳定接口见 [地面站通信协议](GROUND_STATION_PROTOCOL.md)。
 8. [主控安全状态](SAFETY.md)：理解电机放行和失联行为。
 9. [系统可靠性设计](SYSTEM_RELIABILITY.md)：理解 Watchdog、Fault 和系统 Failsafe。
 10. [FreeRTOS 任务架构](FREERTOS_ARCHITECTURE.md)：理解任务、优先级、栈和迁移门槛。
