@@ -18,6 +18,7 @@ REQUIRED_FILES = (
     "README.md",
     "CHANGELOG.md",
     "docs/README.md",
+    "docs/DEVELOP_ENGINEERING_LEARNING_GUIDE.md",
     "docs/PROJECT_STRUCTURE.md",
     "docs/ARCHITECTURE.md",
     "docs/DRIVER_API.md",

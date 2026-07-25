@@ -62,6 +62,7 @@ Keil/ARMCC 双目标构建：
 
 ## 文档
 
+- [develop 嵌入式工程化学习指南](docs/DEVELOP_ENGINEERING_LEARNING_GUIDE.md)
 - [工程文档索引与学习路径](docs/README.md)
 - [项目结构与模块职责](docs/PROJECT_STRUCTURE.md)
 - [总体架构](docs/ARCHITECTURE.md)

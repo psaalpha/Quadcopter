@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-07-26 - Add the develop engineering learning guide
+
+### Added
+- Added a version-driven embedded software course for all six `main..develop`
+  engineering commits.
+- Mapped every version to its engineering problem, key files and functions,
+  technical concepts, hands-on experiments, acceptance criteria, common
+  mistakes, and interview explanation.
+- Added five end-to-end code-reading routes, twelve progressive experiments, a
+  twelve-week teaching plan, a capstone project, and a competency rubric.
+- Linked the guide from the root README and documentation index, and made it a
+  required engineering document.
+
+### Scope
+- Documentation and repository validation only.
+- No PID, attitude, mixer, protocol, interrupt, peripheral, or PWM behavior was
+  changed.
+
 ## 2026-07-26 - Complete the engineering documentation baseline
 
 ### Added
