@@ -22,7 +22,8 @@ Flash 参数持久化和日志输出后端仍保持未启用，控制算法没�
 │   ├── Protocol/           # 与硬件无关的主从通信协议
 │   ├── Drivers/            # 公共驱动契约和通用设备逻辑
 │   ├── HAL/                # 可替换的硬件访问接口
-│   └── Services/           # 参数和结构化日志服务
+│   ├── Safety/             # Watchdog、Fault 与 Failsafe
+│   └── Services/           # 参数、日志和协议服务
 ├── Master_MCU/
 │   ├── App/                # 调度与飞行安全策略
 │   ├── BSP/                # 板级配置和控制定时器
@@ -99,4 +100,8 @@ Keil/ARMCC 双目标构建：
 - [运行维护手册](docs/MAINTENANCE.md)
 - [固件发布流程](docs/RELEASE.md)
 - [后续演进路线](docs/ROADMAP.md)
+- [C 编码规范](docs/CODING_STANDARD.md)
+- [静态检查说明](docs/STATIC_ANALYSIS.md)
+- [Doxygen 接口文档](docs/DOXYGEN.md)
+- [七阶段学习路线](docs/LEARNING_ROADMAP.md)
 - [协作规范](CONTRIBUTING.md)

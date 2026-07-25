@@ -1,3 +1,7 @@
+/**
+ * @file hal_uart.h
+ * @brief Non-blocking hardware-independent UART transaction contract.
+ */
 #ifndef HAL_UART_H
 #define HAL_UART_H
 

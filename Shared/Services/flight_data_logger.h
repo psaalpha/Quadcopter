@@ -1,3 +1,10 @@
+/**
+ * @file flight_data_logger.h
+ * @brief Bounded non-blocking capture and drain of flight-control snapshots.
+ *
+ * Capture uses fixed caller-owned storage and drops new records when full.
+ * Slow sink work is performed only by the explicitly bounded drain operation.
+ */
 #ifndef FLIGHT_DATA_LOGGER_H
 #define FLIGHT_DATA_LOGGER_H
 
@@ -85,6 +92,10 @@ FlightDataLoggerStatus FlightDataLogger_Init(
     uint16_t capacity,
     uint16_t capture_divider,
     const FlightDataLoggerLock *lock);
+/**
+ * @brief Copy one snapshot into the ring when its capture divider is due.
+ * @return OK, SKIPPED, FULL, or an initialization/argument error.
+ */
 FlightDataLoggerStatus FlightDataLogger_Capture(
     FlightDataLogger *logger,
     const FlightDataSnapshot *snapshot);
@@ -93,6 +104,10 @@ FlightDataLoggerStatus FlightDataLogger_Pop(
     FlightDataRecord *record);
 uint16_t FlightDataLogger_Pending(FlightDataLogger *logger);
 uint32_t FlightDataLogger_Dropped(FlightDataLogger *logger);
+/**
+ * @brief Send at most maximum_records to a non-blocking sink.
+ * @return Number of records successfully consumed from the ring.
+ */
 uint16_t FlightDataLogger_Drain(
     FlightDataLogger *logger,
     const FlightDataLoggerSink *sink,

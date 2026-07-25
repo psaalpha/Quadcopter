@@ -1,3 +1,7 @@
+/**
+ * @file hal_i2c.h
+ * @brief Non-blocking hardware-independent I2C transaction contract.
+ */
 #ifndef HAL_I2C_H
 #define HAL_I2C_H
 

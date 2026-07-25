@@ -1,3 +1,7 @@
+/**
+ * @file hal_timer.h
+ * @brief Hardware-independent timer tick, frequency, and compare contract.
+ */
 #ifndef HAL_TIMER_H
 #define HAL_TIMER_H
 

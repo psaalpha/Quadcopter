@@ -26,6 +26,10 @@
 17. [运行维护手册](MAINTENANCE.md)：定位常见构建、通信和硬件问题。
 18. [发布流程](RELEASE.md)：生成、验证和烧录匹配固件。
 19. [后续路线](ROADMAP.md)：了解当前边界和下一阶段工作。
+20. [C 编码规范](CODING_STANDARD.md)：统一分层、命名、实时和错误处理规则。
+21. [静态检查说明](STATIC_ANALYSIS.md)：理解当前自动边界和后续工具路线。
+22. [Doxygen 接口文档](DOXYGEN.md)：生成并审查 API 文档。
+23. [完整学习路线](LEARNING_ROADMAP.md)：按七个 Phase 逐项深入。
 
 ## 按角色阅读
 

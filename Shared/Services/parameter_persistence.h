@@ -1,3 +1,7 @@
+/**
+ * @file parameter_persistence.h
+ * @brief Injected atomic storage boundary for versioned parameter images.
+ */
 #ifndef PARAMETER_PERSISTENCE_H
 #define PARAMETER_PERSISTENCE_H
 

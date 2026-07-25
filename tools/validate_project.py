@@ -17,6 +17,7 @@ PROJECTS = (
 REQUIRED_FILES = (
     "README.md",
     "CHANGELOG.md",
+    "Doxyfile",
     "docs/README.md",
     "docs/PROJECT_STRUCTURE.md",
     "docs/ARCHITECTURE.md",
@@ -31,6 +32,11 @@ REQUIRED_FILES = (
     "docs/RELEASE.md",
     "docs/ROADMAP.md",
     "docs/EMBEDDED_ENGINEERING_UPGRADE.md",
+    "docs/CODING_STANDARD.md",
+    "docs/STATIC_ANALYSIS.md",
+    "docs/DOXYGEN.md",
+    "docs/LEARNING_ROADMAP.md",
+    "docs/learning/PHASE_7_ENGINEERING_QUALITY.md",
     "docs/HAL.md",
     "docs/HAL_DESIGN.md",
     "docs/learning/PHASE_2_HAL_ARCHITECTURE.md",
@@ -105,6 +111,15 @@ REMOVED_DUPLICATE_DIRECTORIES = (
     "Slave_MCU/Start",
     "Slave_MCU/Library",
     "Slave_MCU/System",
+)
+SHARED_FORBIDDEN_TOKENS = (
+    "stm32f10x",
+    "STM32F10x",
+    "Platform/STM32F1",
+    "Platform\\STM32F1",
+)
+SHARED_FORBIDDEN_CALLS = re.compile(
+    r"\b(?:malloc|calloc|realloc|free|printf|sprintf|vsprintf)\s*\("
 )
 
 
@@ -198,6 +213,32 @@ def validate_host_test_registration() -> list[str]:
     return errors
 
 
+def validate_shared_portability() -> list[str]:
+    errors: list[str] = []
+    shared_root = REPOSITORY_ROOT / "Shared"
+
+    for source in sorted(shared_root.rglob("*")):
+        if source.suffix.lower() not in {".c", ".h"}:
+            continue
+        text = source.read_text(encoding="utf-8", errors="replace")
+        relative_source = source.relative_to(REPOSITORY_ROOT)
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            for token in SHARED_FORBIDDEN_TOKENS:
+                if token in line:
+                    errors.append(
+                        f"{relative_source}:{line_number} imports "
+                        f"platform-specific token: {token}"
+                    )
+            match = SHARED_FORBIDDEN_CALLS.search(line)
+            if match:
+                errors.append(
+                    f"{relative_source}:{line_number} uses forbidden "
+                    f"runtime call in Shared: {match.group(0).rstrip('(')}"
+                )
+
+    return errors
+
+
 def main() -> int:
     errors: list[str] = []
 
@@ -217,6 +258,7 @@ def main() -> int:
     for document in markdown_documents:
         errors.extend(validate_markdown_links(document))
     errors.extend(validate_host_test_registration())
+    errors.extend(validate_shared_portability())
 
     if errors:
         print("Project validation failed:")
@@ -232,6 +274,7 @@ def main() -> int:
     print("  - both firmware targets compile the shared protocol")
     print("  - internal Markdown document links resolve")
     print("  - every host test source is registered in CMake")
+    print("  - Shared remains platform-independent and allocation-free")
     return 0
 
 

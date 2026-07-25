@@ -1,3 +1,7 @@
+/**
+ * @file fault_manager.h
+ * @brief Central fault identity, severity, history, and notification contract.
+ */
 #ifndef FAULT_MANAGER_H
 #define FAULT_MANAGER_H
 
@@ -61,6 +65,16 @@ void FaultManager_Init(
     FaultManager *manager,
     FaultHandler handler,
     void *handler_context);
+/**
+ * @brief Raise or update one fault without performing the safety action itself.
+ * @param manager Initialized fault manager.
+ * @param id Stable fault identifier.
+ * @param level Current severity.
+ * @param latch Nonzero to retain the fault in the history mask.
+ * @param argument Module-defined diagnostic detail.
+ * @param timestamp_ms Monotonic timestamp in milliseconds.
+ * @return Nonzero when the request is valid and recorded.
+ */
 uint8_t FaultManager_Raise(
     FaultManager *manager,
     FaultId id,

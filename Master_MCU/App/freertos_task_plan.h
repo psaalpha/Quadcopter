@@ -1,3 +1,9 @@
+/**
+ * @file freertos_task_plan.h
+ * @brief Non-executing five-task contract for a staged FreeRTOS migration.
+ *
+ * This module contains no FreeRTOS dependency and does not create tasks.
+ */
 #ifndef FREERTOS_TASK_PLAN_H
 #define FREERTOS_TASK_PLAN_H
 
@@ -32,9 +38,13 @@ typedef struct
     RtosTaskReleaseMode release_mode;
 } RtosTaskPlanSpec;
 
+/** @brief Return the immutable specification for one planned task. */
 const RtosTaskPlanSpec *RtosTaskPlan_Get(RtosPlannedTaskId task);
+/** @brief Return the number of task specifications in the plan. */
 uint8_t RtosTaskPlan_Count(void);
+/** @brief Return the initial sum of task stack budgets in 32-bit words. */
 uint32_t RtosTaskPlan_TotalStackWords(void);
+/** @brief Check task IDs, timing, stack, priority, and ordering invariants. */
 uint8_t RtosTaskPlan_Validate(void);
 
 #endif

@@ -1,3 +1,7 @@
+/**
+ * @file parameter_catalog.h
+ * @brief Stable parameter names, categories, units, and schema visibility.
+ */
 #ifndef PARAMETER_CATALOG_H
 #define PARAMETER_CATALOG_H
 

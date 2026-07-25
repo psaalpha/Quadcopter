@@ -1,3 +1,7 @@
+/**
+ * @file hal_gpio.h
+ * @brief Hardware-independent GPIO backend and defensive wrapper API.
+ */
 #ifndef HAL_GPIO_H
 #define HAL_GPIO_H
 

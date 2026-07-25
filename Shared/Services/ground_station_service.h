@@ -1,3 +1,10 @@
+/**
+ * @file ground_station_service.h
+ * @brief Validated ground-station request dispatch through application hooks.
+ *
+ * Callbacks own authorization and safety policy. This service never directly
+ * arms, disarms, writes Flash, or drives a peripheral.
+ */
 #ifndef GROUND_STATION_SERVICE_H
 #define GROUND_STATION_SERVICE_H
 
@@ -78,6 +85,13 @@ typedef struct
     void *context;
 } GroundStationServiceOps;
 
+/**
+ * @brief Process one decoded request and construct its response.
+ * @param service Application callbacks and context.
+ * @param request Valid decoded request frame.
+ * @param response Caller-owned response frame.
+ * @return Service result; error responses are also populated when possible.
+ */
 GroundStationServiceStatus GroundStationService_Process(
     const GroundStationServiceOps *service,
     const GroundStationFrame *request,

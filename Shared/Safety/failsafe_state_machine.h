@@ -1,3 +1,10 @@
+/**
+ * @file failsafe_state_machine.h
+ * @brief Explicit NORMAL/WARNING/FAILSAFE/DISARM transition policy.
+ *
+ * The state machine decides system safety state; motor actuation remains the
+ * responsibility of the application output gate.
+ */
 #ifndef FAILSAFE_STATE_MACHINE_H
 #define FAILSAFE_STATE_MACHINE_H
 
@@ -43,6 +50,14 @@ typedef struct
 void FailsafeStateMachine_Init(
     FailsafeStateMachine *machine,
     uint32_t timestamp_ms);
+/**
+ * @brief Apply one event using the caller-provided arm safety guard.
+ * @param machine Initialized state machine.
+ * @param event Event to evaluate.
+ * @param arm_permitted Nonzero only when all external arming guards pass.
+ * @param timestamp_ms Monotonic timestamp in milliseconds.
+ * @return Transition, no-change, guard rejection, or invalid input result.
+ */
 FailsafeResult FailsafeStateMachine_Handle(
     FailsafeStateMachine *machine,
     FailsafeEvent event,

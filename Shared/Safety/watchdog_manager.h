@@ -1,3 +1,10 @@
+/**
+ * @file watchdog_manager.h
+ * @brief Heartbeat-gated hardware watchdog supervision and reset recording.
+ *
+ * The manager is hardware-independent. Platform code supplies the backend;
+ * application clients report completed work through heartbeat calls.
+ */
 #ifndef WATCHDOG_MANAGER_H
 #define WATCHDOG_MANAGER_H
 
@@ -84,6 +91,12 @@ WatchdogStatus WatchdogManager_Check(
     WatchdogManager *manager,
     uint32_t timestamp_ms,
     uint8_t *expired_mask);
+/**
+ * @brief Feed the hardware watchdog only when every required client is healthy.
+ * @param manager Initialized manager instance.
+ * @param timestamp_ms Monotonic millisecond timestamp; unsigned wrap is valid.
+ * @return WATCHDOG_STATUS_OK on a hardware feed, otherwise the gating reason.
+ */
 WatchdogStatus WatchdogManager_Feed(
     WatchdogManager *manager,
     uint32_t timestamp_ms);

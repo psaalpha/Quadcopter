@@ -3,13 +3,14 @@
 ## 开始工作前
 
 ```powershell
-git switch develop
+git switch <feature-branch>
 git pull --ff-only
 git status --short --branch
 python tools/validate_project.py
 ```
 
-确认工作树干净，并记录当前 Master/Slave 构建结果。
+功能开发从稳定 `develop` 派生；当前长期工程化方向使用
+`embedded-engineering-upgrade`。确认工作树干净，并记录当前 Master/Slave 构建结果。
 
 ## 修改分类
 
@@ -40,6 +41,8 @@ python tools/validate_project.py
 - Master/Slave 同时构建；
 - 标明是否破坏兼容；
 - 破坏性变化增加协议版本并要求成对烧录。
+
+地面站协议和主从 MCU 协议独立版本化，不得复用消息编号或在未记录的情况下改变语义。
 
 ### 安全或控制修改
 
@@ -83,6 +86,8 @@ python tools/validate_project.py
 - 是否改变了电机输出或安全状态？
 - 是否引入引脚、DMA 或定时器冲突？
 - 是否同步更新测试、文档和 CHANGELOG？
+- 新 public API 是否有 Doxygen 契约、单位和调用上下文？
+- `Shared` 是否仍然不依赖 STM32、动态内存和格式化 stdio？
 - 是否保留了 `main` 的稳定基线？
 
 ## Git 提交要求
@@ -102,3 +107,12 @@ python tools/validate_project.py
 - `Move battery ADC setup into slave BSP`
 
 不要把算法调参、驱动重构、目录迁移和格式化混在一个提交中。
+
+阶段性工程化提交正文应记录：
+
+- `Purpose`：解决的工程问题；
+- `Knowledge`：涉及的嵌入式知识；
+- `Value`：对可维护性、可靠性或验证的价值。
+
+编码规则见 [C 编码规范](CODING_STANDARD.md)，静态检查路线见
+[静态检查说明](STATIC_ANALYSIS.md)。

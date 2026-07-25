@@ -1,3 +1,7 @@
+/**
+ * @file hal_pwm.h
+ * @brief Hardware-independent PWM bounds and output update contract.
+ */
 #ifndef HAL_PWM_H
 #define HAL_PWM_H
 

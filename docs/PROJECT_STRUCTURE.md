@@ -6,10 +6,11 @@
 Quadcopter/
 ├── Platform/STM32F1/          公共芯片平台
 ├── Shared/
-│   ├── Protocol/              主从共享协议
+│   ├── Protocol/              主从与地面站二进制协议
 │   ├── Drivers/               通用驱动契约和设备逻辑
 │   ├── HAL/                   与芯片无关的硬件接口
-│   └── Services/              参数与结构化日志服务
+│   ├── Safety/                Watchdog、Fault 与 Failsafe
+│   └── Services/              参数、日志和协议服务
 ├── Master_MCU/                主控固件
 │   ├── App/                   应用调度、安全策略和任务模型
 │   ├── BSP/                   板级配置、定时器和 HAL 适配
@@ -48,12 +49,13 @@ Quadcopter/
 
 | 目录 | 当前职责 |
 |---|---|
-| `Protocol` | 带版本、长度和 CRC 的 Master/Slave 线上协议 |
+| `Protocol` | 独立版本化的 Master/Slave 与地面站协议 codec |
 | `Drivers` | 驱动状态/健康契约和通用 `StatusLed` 设备逻辑 |
-| `HAL` | 当前 GPIO 操作契约；后续扩展 SPI/I2C/UART/时间/NVM |
-| `Services` | 参数描述、持久化镜像和结构化事件日志 |
+| `HAL` | GPIO、UART、I2C、SPI、PWM 和 TIMER 硬件无关契约 |
+| `Safety` | Watchdog heartbeat、统一 Fault 和系统 Failsafe |
+| `Services` | 参数、持久化、事件/飞行日志和地面站请求分发 |
 
-`Services` 当前只提供基础设施，尚未接管 PID、Flash 或蓝牙遥测。
+`Services` 当前只提供基础设施，尚未接管 PID、Flash、蓝牙遥测或实际地面站 UART。
 
 ## Master MCU
 
@@ -63,6 +65,7 @@ Quadcopter/
 |---|---|
 | `app_scheduler` | 周期任务通知、消费和 overrun 计数 |
 | `app_task_model` | 周期、deadline、逻辑优先级和 FreeRTOS 栈预算 |
+| `freertos_task_plan` | 未来五任务的非执行迁移契约 |
 | `flight_safety` | 启动锁、运行、失联和恢复锁状态转换 |
 
 App 表达系统策略，不应直接配置 GPIO、DMA 或 USART。

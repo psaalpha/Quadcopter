@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-07-26 - Complete the seven-phase embedded engineering upgrade
+
+### Added
+- Added Watchdog Manager, unified Fault Manager, and documented
+  NORMAL/WARNING/FAILSAFE/DISARM system state machine.
+- Added portable UART, I2C, SPI, PWM, and TIMER HAL contracts alongside GPIO.
+- Added a bounded, non-blocking Flight Data Logger for control snapshots.
+- Extended parameter metadata, validation, schema management, and injected
+  atomic-persistence interfaces without changing `ParameterStore_*`.
+- Added a separately versioned ground-station protocol and guarded STM32-side
+  service interface for status, parameters, and control requests.
+- Added a non-executing five-task FreeRTOS migration contract with timing,
+  stack, data-flow, and resource-ownership plans.
+- Added Doxygen configuration, coding rules, static-analysis guidance, all
+  seven learning guides, and a consolidated study roadmap.
+
+### Quality
+- Expanded Host coverage to 15 independent tests.
+- Extended repository validation to protect the platform-independent Shared
+  layer from STM32 dependencies, dynamic allocation, and formatted stdio.
+- Added Doxygen generation to GitHub quality checks.
+- Kept per-phase commits with Purpose, Knowledge, and Value in each message.
+
+### Scope
+- PID equations and coefficients, attitude estimation, motor mixing, PWM
+  timing, CRSF behavior, and the existing inter-MCU wire format were not
+  changed.
+- New foundations are not silently connected to the production control path.
+- FreeRTOS, Linux ground-station code, Flash hardware binding, production log
+  storage, and hardware watchdog binding remain staged integration work.
+
 ## 2026-07-26 - Establish enterprise embedded foundations
 
 ### Added

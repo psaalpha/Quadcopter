@@ -32,6 +32,7 @@ python tools/validate_project.py
 - Keil 引用的源文件和 include 目录存在；
 - Master/Slave 都编译共享协议；
 - 核心维护文档存在。
+- `Shared` 不包含 STM32 平台依赖、动态内存或格式化 stdio。
 
 ## Host 单元测试
 
@@ -55,9 +56,20 @@ ctest --test-dir build/host --output-on-failure
 | `app_task_model` | 周期、优先级、deadline 和栈预算 |
 | `parameter_store` | 类型、范围、schema、CRC 和事务加载 |
 | `event_log` | FIFO、回绕、溢出、锁和 sink backpressure |
+| `watchdog_manager` | heartbeat、超时、喂狗门控和 reset reason |
+| `fault_manager` | 故障级别、active/latched mask 和 handler |
+| `failsafe_state_machine` | NORMAL/WARNING/FAILSAFE/DISARM 转换 |
+| `hal_interfaces` | UART/I2C/SPI/PWM/TIMER 参数和后端边界 |
+| `flight_data_logger` | 采样分频、ring、丢弃和有界 drain |
+| `parameter_extensions` | catalog、schema、校验和持久化并发 |
+| `ground_station_protocol` | framing、CRC、参数和控制拒绝路径 |
+| `freertos_task_plan` | 五任务周期、deadline、优先级和栈预算 |
 
 所有 Host 测试在 Debug 和 Release 配置中都显式保留 `assert()`；禁止通过
 `NDEBUG` 把断言编译掉。
+
+当前工程基础共注册 15 项 Host 测试。数量变化时，应同步更新本表，但验收以
+CTest 实际发现的测试为准。
 
 ## 统一质量门禁
 

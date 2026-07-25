@@ -1,3 +1,7 @@
+/**
+ * @file hal_status.h
+ * @brief Common hardware-independent result codes shared by HAL contracts.
+ */
 #ifndef HAL_STATUS_H
 #define HAL_STATUS_H
 

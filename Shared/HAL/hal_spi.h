@@ -1,3 +1,7 @@
+/**
+ * @file hal_spi.h
+ * @brief Non-blocking hardware-independent SPI transaction contract.
+ */
 #ifndef HAL_SPI_H
 #define HAL_SPI_H
 

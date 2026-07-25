@@ -1,3 +1,9 @@
+/**
+ * @file ground_station_protocol.h
+ * @brief Versioned, CRC-protected binary framing for a future ground station.
+ *
+ * The codec operates on complete frames and performs no I/O or flight action.
+ */
 #ifndef GROUND_STATION_PROTOCOL_H
 #define GROUND_STATION_PROTOCOL_H
 
@@ -51,11 +57,19 @@ typedef struct
 uint16_t GroundStationProtocol_Crc16(
     const uint8_t *data,
     uint16_t length);
+/**
+ * @brief Encode one complete frame into a caller-owned byte buffer.
+ * @return Protocol status; written_size is valid only on success.
+ */
 GroundStationProtocolStatus GroundStationProtocol_Encode(
     const GroundStationFrame *frame,
     uint8_t *output,
     uint16_t capacity,
     uint16_t *written_size);
+/**
+ * @brief Validate and decode exactly one complete byte frame.
+ * @return Protocol status; frame contents are valid only on success.
+ */
 GroundStationProtocolStatus GroundStationProtocol_Decode(
     GroundStationFrame *frame,
     const uint8_t *input,

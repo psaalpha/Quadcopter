@@ -30,6 +30,14 @@ jobs:
       - name: Configure host tests
         run: cmake -S . -B build/host -DCMAKE_BUILD_TYPE=Release
 
+      - name: Install Doxygen
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y doxygen
+
+      - name: Build API documentation
+        run: doxygen Doxyfile
+
       - name: Build host tests
         run: cmake --build build/host --config Release
 
