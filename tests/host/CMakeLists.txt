@@ -171,3 +171,30 @@ else()
 endif()
 
 add_test(NAME parameter_store COMMAND parameter_store_test)
+
+add_executable(
+    event_log_test
+    test_event_log.c
+    ../../Shared/Services/event_log.c
+)
+
+target_include_directories(
+    event_log_test
+    PRIVATE
+    ../../Shared/Services
+)
+
+if(MSVC)
+    target_compile_options(event_log_test PRIVATE /W4 /WX)
+else()
+    target_compile_options(
+        event_log_test
+        PRIVATE
+        -Wall
+        -Wextra
+        -Werror
+        -pedantic
+    )
+endif()
+
+add_test(NAME event_log COMMAND event_log_test)

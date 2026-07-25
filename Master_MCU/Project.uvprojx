@@ -885,6 +885,16 @@
               <FileType>5</FileType>
               <FilePath>..\Shared\Services\parameter_store.h</FilePath>
             </File>
+            <File>
+              <FileName>event_log.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Services\event_log.c</FilePath>
+            </File>
+            <File>
+              <FileName>event_log.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Services\event_log.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
