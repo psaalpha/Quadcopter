@@ -116,3 +116,31 @@ else()
 endif()
 
 add_test(NAME status_led COMMAND status_led_test)
+
+add_executable(
+    app_task_model_test
+    test_app_task_model.c
+    ../../Master_MCU/App/app_task_model.c
+)
+
+target_include_directories(
+    app_task_model_test
+    PRIVATE
+    ../../Master_MCU/App
+    ../../Master_MCU/BSP
+)
+
+if(MSVC)
+    target_compile_options(app_task_model_test PRIVATE /W4 /WX)
+else()
+    target_compile_options(
+        app_task_model_test
+        PRIVATE
+        -Wall
+        -Wextra
+        -Werror
+        -pedantic
+    )
+endif()
+
+add_test(NAME app_task_model COMMAND app_task_model_test)

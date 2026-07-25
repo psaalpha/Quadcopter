@@ -1,5 +1,7 @@
 #include "app_scheduler.h"
 
+#include "stm32f10x.h"
+
 /*
  * Periodic control tasks are coalesced instead of replayed back-to-back.
  * A second notification while one is pending is a missed deadline and is

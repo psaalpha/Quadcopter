@@ -1,16 +1,9 @@
 #ifndef APP_SCHEDULER_H
 #define APP_SCHEDULER_H
 
-#include "stm32f10x.h"
+#include <stdint.h>
 
-typedef enum
-{
-    APP_TASK_IMU_UPDATE = 0,
-    APP_TASK_RC_SERVICE,
-    APP_TASK_ANGLE_CONTROL,
-    APP_TASK_MOTOR_OUTPUT,
-    APP_TASK_COUNT
-} AppTaskId;
+#include "app_task_model.h"
 
 void AppScheduler_Init(void);
 void AppScheduler_NotifyFromIsr(AppTaskId task);
