@@ -716,26 +716,6 @@
               <FilePath>.\Hardware\MPU6050_Reg.h</FilePath>
             </File>
             <File>
-              <FileName>PWM1.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\Hardware\PWM1.c</FilePath>
-            </File>
-            <File>
-              <FileName>PWM1.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\PWM1.h</FilePath>
-            </File>
-            <File>
-              <FileName>PWM3.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\Hardware\PWM3.c</FilePath>
-            </File>
-            <File>
-              <FileName>PWM3.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\PWM3.h</FilePath>
-            </File>
-            <File>
               <FileName>PWM4.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\Hardware\PWM4.c</FilePath>
@@ -789,16 +769,6 @@
               <FileName>Kalman.h</FileName>
               <FileType>5</FileType>
               <FilePath>.\Hardware\Kalman.h</FilePath>
-            </File>
-            <File>
-              <FileName>Timer1.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\Hardware\Timer1.c</FilePath>
-            </File>
-            <File>
-              <FileName>Timer1.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\Timer1.h</FilePath>
             </File>
             <File>
               <FileName>OLED.c</FileName>
@@ -890,6 +860,16 @@
         <Group>
           <GroupName>Board Support</GroupName>
           <Files>
+            <File>
+              <FileName>control_timers.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\BSP\control_timers.c</FilePath>
+            </File>
+            <File>
+              <FileName>control_timers.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\BSP\control_timers.h</FilePath>
+            </File>
             <File>
               <FileName>board_config.h</FileName>
               <FileType>5</FileType>

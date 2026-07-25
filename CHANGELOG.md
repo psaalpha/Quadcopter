@@ -1,5 +1,32 @@
 # Changelog
 
+## 2026-07-25 - Add firmware engineering quality gates
+
+### Changed
+- Replaced the misleading `PWM1`, `PWM3`, and `Timer1` timer modules with a
+  single `BSP/control_timers` owner for the master control timebase.
+- Removed unused GPIO alternate-function setup from the TIM2 and TIM3 timebase
+  path. This eliminates hidden conflicts with CRSF on PA2 and MPU6050 software
+  I2C on PA6.
+- Made the control timers start only after sensor, communication, motor-output,
+  and safety initialization has completed.
+- Added a repository-level CMake entry point, dual-target Keil build script,
+  and Python validation for Keil XML source/include references and required
+  architecture boundaries.
+- Added GitHub Actions checks for repository validation, warning-clean host
+  builds, and unit tests on `main`, `develop`, and pull requests.
+- Added README, contribution rules, and architecture, build, pinout, protocol,
+  safety, and roadmap documentation.
+
+### Validation
+- Repository validation passed for both Keil projects and every referenced
+  source/include path.
+- Root CMake build passed with GCC 8.1.0; `2/2` host tests passed.
+- Unified Keil script result: both Master and Slave reported
+  `0 Error(s), 0 Warning(s)`.
+- Master program size after timer consolidation: Code `28748`, RO-data `892`,
+  RW-data `568`, ZI-data `2664` bytes.
+
 ## 2026-07-25 - Make the master runtime deterministic
 
 ### Changed

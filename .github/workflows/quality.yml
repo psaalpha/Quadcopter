@@ -1,0 +1,32 @@
+name: Firmware quality gates
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+
+jobs:
+  host-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate Keil projects and repository layout
+        run: python tools/validate_project.py
+
+      - name: Configure host tests
+        run: cmake -S . -B build/host -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build host tests
+        run: cmake --build build/host --config Release
+
+      - name: Run host tests
+        run: ctest --test-dir build/host --build-config Release --output-on-failure

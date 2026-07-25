@@ -2,9 +2,6 @@
 #include "Delay.h"
 #include "MPU6050.h"
 #include "hubu.h"
-#include "PWM1.h"
-#include "Timer1.h"
-#include "PWM3.h"
 #include "PWM4.h"
 #include "QMC5883P.h"
 #include "Pid.h"
@@ -18,6 +15,7 @@
 #include "app_scheduler.h"
 #include "flight_safety.h"
 #include "board_config.h"
+#include "control_timers.h"
 
 /* 中断和主循环共享的数据 */
 uint8_t  C=0;
@@ -385,10 +383,6 @@ int main(void)
 	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
 	AppScheduler_Init();
 	FlightSafety_Init(&flight_safety);
-	PWM1_Init();
-	PWM3_Init();
-	PWM4_Init();
-	TIM1_Init_1S_IRQ();
 	LED_Init();	
 	MPU6050_Init();		
 	Kalman_Roll_Init();
@@ -397,9 +391,9 @@ int main(void)
 	IWDG_Init();
 	CRSF_Init();
 	SlaveMCU_Init();
-	/* 丢弃外设初始化期间累积的周期任务，从实时边界开始调度。 */
-	AppScheduler_Init();
+	PWM4_Init();
 	FlightControl_HoldSafe();
+	BoardControlTimers_Init();
 
 	while (1)
 	{
