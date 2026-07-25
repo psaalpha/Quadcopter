@@ -29,6 +29,11 @@ ctest --test-dir build/host --output-on-failure
 - `Hardware` 负责设备驱动和控制算法，不承担系统状态切换。
 - 中断只完成采样搬运、时间记账、任务通知和必要的硬件应答。
 
+新增或整理驱动时必须遵守
+[`docs/DRIVER_API.md`](docs/DRIVER_API.md)。开发前先阅读
+[`docs/DEVELOPMENT_GUIDE.md`](docs/DEVELOPMENT_GUIDE.md)，发布前按
+[`docs/RELEASE.md`](docs/RELEASE.md) 完成检查。
+
 ## 安全相关修改
 
 涉及电机输出、遥控、解锁、失联保护、看门狗或 PID 的修改，必须：

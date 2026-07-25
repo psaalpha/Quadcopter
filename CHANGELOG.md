@@ -1,5 +1,38 @@
 # Changelog
 
+## 2026-07-26 - Complete the engineering documentation baseline
+
+### Added
+- Added a documentation index with role-based and sequential learning paths.
+- Documented the repository structure, module ownership, active versus legacy
+  code, and dependency rules.
+- Defined a normative driver API standard covering naming, status returns,
+  data snapshots, units, blocking behavior, ISR boundaries, headers, and a
+  staged migration plan for existing drivers.
+- Added development, automated testing, maintenance, troubleshooting, release,
+  paired-firmware, flashing, and rollback procedures.
+
+### Changed
+- Expanded the architecture document with the problems before refactoring, the
+  intent and effect of all four engineering commits, embedded-engineer skill
+  mappings, current limitations, and future boundaries.
+- Expanded the root README and contribution guide to point maintainers to the
+  complete documentation set.
+- Extended repository validation so missing core maintenance documents fail the
+  engineering quality gate.
+
+### Scope
+- No flight-control algorithm, PID parameter, protocol layout, interrupt
+  behavior, peripheral configuration, or motor-output behavior was changed.
+
+### Validation
+- Repository validation passed, including required engineering files, Keil
+  source/include references, shared-protocol integration, and internal
+  Markdown links.
+- Root CMake build passed and `2/2` host tests passed.
+- Unified Keil script result: both Master and Slave reported
+  `0 Error(s), 0 Warning(s)`.
+
 ## 2026-07-25 - Add firmware engineering quality gates
 
 ### Changed

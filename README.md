@@ -7,6 +7,8 @@
 
 当前 `develop` 分支已经完成基础工程化改造：公共平台代码去重、主从协议版本化、主控实时任务调度、安全状态机、电脑端单元测试、项目结构校验和 GitHub 自动检查。
 
+首次接手项目请从 [工程文档索引](docs/README.md) 开始，里面提供按开发角色和学习顺序组织的阅读路径。
+
 ## 工程结构
 
 ```text
@@ -60,10 +62,17 @@ Keil/ARMCC 双目标构建：
 
 ## 文档
 
+- [工程文档索引与学习路径](docs/README.md)
+- [项目结构与模块职责](docs/PROJECT_STRUCTURE.md)
 - [总体架构](docs/ARCHITECTURE.md)
+- [驱动接口规范](docs/DRIVER_API.md)
+- [开发维护指南](docs/DEVELOPMENT_GUIDE.md)
 - [构建与验证](docs/BUILD.md)
+- [自动测试说明](docs/TESTING.md)
 - [硬件资源与引脚](docs/PINOUT.md)
 - [主从通信协议](docs/PROTOCOL.md)
 - [安全状态机](docs/SAFETY.md)
+- [运行维护手册](docs/MAINTENANCE.md)
+- [固件发布流程](docs/RELEASE.md)
 - [后续演进路线](docs/ROADMAP.md)
 - [协作规范](CONTRIBUTING.md)

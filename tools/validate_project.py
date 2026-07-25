@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -16,6 +17,19 @@ PROJECTS = (
 REQUIRED_FILES = (
     "README.md",
     "CHANGELOG.md",
+    "docs/README.md",
+    "docs/PROJECT_STRUCTURE.md",
+    "docs/ARCHITECTURE.md",
+    "docs/DRIVER_API.md",
+    "docs/DEVELOPMENT_GUIDE.md",
+    "docs/BUILD.md",
+    "docs/TESTING.md",
+    "docs/PINOUT.md",
+    "docs/PROTOCOL.md",
+    "docs/SAFETY.md",
+    "docs/MAINTENANCE.md",
+    "docs/RELEASE.md",
+    "docs/ROADMAP.md",
     "Shared/Protocol/inter_mcu_protocol.c",
     "Shared/Protocol/inter_mcu_protocol.h",
     "Master_MCU/App/app_scheduler.c",
@@ -83,6 +97,33 @@ def validate_keil_project(project: Path) -> list[str]:
     return errors
 
 
+def validate_markdown_links(document: Path) -> list[str]:
+    errors: list[str] = []
+    text = document.read_text(encoding="utf-8")
+
+    for match in re.finditer(r"\[[^\]]+\]\(([^)]+)\)", text):
+        raw_target = match.group(1).strip()
+        if (
+            not raw_target
+            or raw_target.startswith("#")
+            or "://" in raw_target
+            or raw_target.startswith("mailto:")
+        ):
+            continue
+
+        path_text = raw_target.split("#", 1)[0].strip()
+        if path_text.startswith("<") and path_text.endswith(">"):
+            path_text = path_text[1:-1]
+        target = (document.parent / path_text).resolve()
+        if not target.exists():
+            errors.append(
+                f"{document.relative_to(REPOSITORY_ROOT)} references "
+                f"missing document: {raw_target}"
+            )
+
+    return errors
+
+
 def main() -> int:
     errors: list[str] = []
 
@@ -97,6 +138,11 @@ def main() -> int:
     for project in PROJECTS:
         errors.extend(validate_keil_project(project))
 
+    markdown_documents = sorted(REPOSITORY_ROOT.glob("*.md"))
+    markdown_documents.extend(sorted((REPOSITORY_ROOT / "docs").rglob("*.md")))
+    for document in markdown_documents:
+        errors.extend(validate_markdown_links(document))
+
     if errors:
         print("Project validation failed:")
         for error in errors:
@@ -109,6 +155,7 @@ def main() -> int:
     print("  - both Keil project XML files are valid")
     print("  - all Keil source and include references exist")
     print("  - both firmware targets compile the shared protocol")
+    print("  - internal Markdown document links resolve")
     return 0
 
 
