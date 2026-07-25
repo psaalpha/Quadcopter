@@ -777,6 +777,18 @@ compare 1000 → 2 ms
 | 台架 | 示波器/逻辑分析仪 | PWM、周期、失联动作 | 自由飞行安全 |
 | 受控验证 | HIL/系留/飞行 | 系统级行为 | 未测试场景 |
 
+#### Release 测试中的 `NDEBUG`
+
+CMake 的 Release 配置通常定义 `NDEBUG`，标准 `assert()` 会被预处理器移除。如果测试
+输入、函数调用和结果检查都只存在于 `assert()` 中，Release 构建可能出现两种问题：
+
+- 测试表面通过，但实际断言和被测函数都没有执行；
+- warnings-as-errors 报告变量未使用或未初始化。
+
+因此本项目的 Host 测试目标显式使用 GCC/Clang 的 `-UNDEBUG` 或 MSVC 的
+`/UNDEBUG`，保证 Debug 和 Release 都真正执行断言。这也说明质量门必须用与 CI
+相同的 Release 配置在本地复现，不能只运行默认构建。
+
 ### 推荐代码阅读顺序
 
 1. `docs/PINOUT.md`
@@ -1390,6 +1402,14 @@ python tools/validate_project.py
 cmake -S . -B build/host -G "MinGW Makefiles"
 cmake --build build/host
 ctest --test-dir build/host --output-on-failure
+```
+
+模拟 GitHub 的 Release 配置：
+
+```powershell
+cmake -S . -B build/host-release -DCMAKE_BUILD_TYPE=Release
+cmake --build build/host-release
+ctest --test-dir build/host-release --output-on-failure
 ```
 
 ### Master/Slave 固件构建

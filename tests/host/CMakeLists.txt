@@ -17,7 +17,13 @@ target_include_directories(
 )
 
 if(MSVC)
-    target_compile_options(inter_mcu_protocol_test PRIVATE /W4 /WX)
+    target_compile_options(
+        inter_mcu_protocol_test
+        PRIVATE
+        /W4
+        /WX
+        /UNDEBUG
+    )
 else()
     target_compile_options(
         inter_mcu_protocol_test
@@ -26,6 +32,7 @@ else()
         -Wextra
         -Werror
         -pedantic
+        -UNDEBUG
     )
 endif()
 
@@ -44,7 +51,13 @@ target_include_directories(
 )
 
 if(MSVC)
-    target_compile_options(flight_safety_test PRIVATE /W4 /WX)
+    target_compile_options(
+        flight_safety_test
+        PRIVATE
+        /W4
+        /WX
+        /UNDEBUG
+    )
 else()
     target_compile_options(
         flight_safety_test
@@ -53,6 +66,7 @@ else()
         -Wextra
         -Werror
         -pedantic
+        -UNDEBUG
     )
 endif()
 

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-07-26 - Keep Host assertions active in Release
+
+### Fixed
+- Undefine `NDEBUG` for GCC/Clang and MSVC Host test targets so Release builds
+  still execute assertion-based protocol and safety tests.
+- Prevent Release warnings-as-errors caused by test variables becoming unused
+  or uninitialized after assertion removal.
+- Document the Debug-versus-Release test lesson in the student guide.
+
+### Scope
+- Host test configuration and documentation only.
+- No firmware source, target compiler option, algorithm, protocol, interrupt,
+  peripheral, mixer, or PWM behavior was changed.
+
 ## 2026-07-26 - Add the develop engineering learning guide
 
 ### Added
