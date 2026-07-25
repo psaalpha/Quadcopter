@@ -1,5 +1,45 @@
 # Changelog
 
+## 2026-07-25 - Harden RC input and motor failsafe
+
+### Fixed
+- Added CRSF CRC8 DVB-S2 validation (`0xD5` polynomial) over frame type and
+  payload. Invalid CRC frames no longer update RC channels or refresh link
+  health.
+- Added strict RC channel-frame length checks plus valid-frame and CRC-error
+  diagnostic counters.
+- Added a 300 ms RC timeout based on the existing 5 ms TIM1 tick. A timeout
+  immediately clears control state and writes the minimum compare value to all
+  four ESC outputs.
+- Added startup and reconnect throttle locking. Motor output remains inhibited
+  until a valid RC frame is received with throttle at or below 5 percent.
+- Added `Drone_Motors_Stop()` to clear base throttle, cached motor mix values,
+  PID outputs, integrators, and filter history so stale motor commands cannot be
+  emitted after a stop request.
+- Fixed Bluetooth tuning so PID defaults are preserved until a valid parameter
+  update is actually received. Each frame now returns an update bitmask and
+  only the named parameter is applied.
+- Rejected malformed Bluetooth numeric values instead of interpreting them as
+  zero, and made the ISR-shared receive flag `volatile`.
+
+### Safety behavior
+- CRSF frames with invalid CRC do not affect control state.
+- On boot, after RC timeout, and after reconnect with high throttle, all four
+  TIM4 compare registers are held at `500`.
+- CH4 and CH5 retain their existing meanings; this change does not introduce a
+  new ARM switch or alter channel and motor ordering.
+
+### Validation
+- Rebuilt `Master_MCU/Project.uvprojx` with ARMCC 5.06 update 7.
+- Build result: `0 Error(s), 0 Warning(s)`.
+- Program size: Code `28236`, RO-data `892`, RW-data `576`, ZI-data `2592`
+  bytes.
+
+### Remaining limitation
+- The project still does not have a dedicated ARM/DISARM flight-state machine.
+  The low-throttle interlock added here is an immediate safety baseline, not a
+  replacement for explicit arming logic.
+
 ## 2026-06-28 - Improve PID
 
 ### Changed

@@ -362,6 +362,9 @@ void Drone_PID_Reset(void)
     roll_rate_integral  = 0.0f;
     pitch_rate_integral = 0.0f;
     yaw_rate_integral   = 0.0f;
+    last_rollRate       = 0.0f;
+    last_pitchRate      = 0.0f;
+    last_yawRate        = 0.0f;
     last_roll_rate      = 0.0f;
     last_pitch_rate     = 0.0f;
     last_yaw_rate       = 0.0f;
@@ -377,6 +380,24 @@ void Drone_PID_Reset(void)
     altitude_pid_out    = 0.0f;
     position_roll_aim   = 0.0f;
     position_pitch_aim  = 0.0f;
+    roll_pid_out        = 0.0f;
+    pitch_pid_out       = 0.0f;
+    yaw_pid_out         = 0.0f;
+    yaw_ceshi           = 0.0f;
+}
+
+/* 立即清除基础油门、混控结果及所有控制器历史状态。 */
+void Drone_Motors_Stop(void)
+{
+    BASE_DUTY = 0.0f;
+    Motor_Duty_FrontLeft  = 0.0f;
+    Motor_Duty_FrontRight = 0.0f;
+    Motor_Duty_BackLeft   = 0.0f;
+    Motor_Duty_BackRight  = 0.0f;
+    target_roll_rate  = 0.0f;
+    target_pitch_rate = 0.0f;
+    target_yaw_rate   = 0.0f;
+    Drone_PID_Reset();
 }
 
 

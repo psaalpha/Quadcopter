@@ -30,6 +30,8 @@
  * ============================================ */
 extern int16_t rcChannels[16];           /* Decoded RC channels (1000~2000) */
 extern volatile uint8_t crsf_frame_received; /* Flag: valid frame decoded */
+extern volatile uint32_t crsf_valid_frame_count;
+extern volatile uint32_t crsf_crc_error_count;
 
 /* ============================================
  * Public API

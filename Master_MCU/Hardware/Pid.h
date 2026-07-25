@@ -6,6 +6,7 @@ void Set_Base_Duty(float value);
 void Drone_Outer_Angle_PID_Control(float current_roll, float current_pitch, float current_yaw);
 void Drone_Inner_Rate_PID_Control(float rollRate, float pitchRate, float yawRate);
 void Drone_Altitude_Position_PID_Control(float current_altitude_cm, int32_t flow_x, int32_t flow_y);
+void Drone_Motors_Stop(void);
 uint16_t Get_Motor_Duty_FrontLeft(void); 
 uint16_t Get_Motor_Duty_FrontRight(void); 
 uint16_t Get_Motor_Duty_BackLeft(void);  

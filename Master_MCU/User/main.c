@@ -34,15 +34,26 @@ uint8_t ReceiveSuccessCount, ReceiveFailedCount;/* 接收成功/失败计数 */
 
 float p0,d0;
 extern volatile uint8_t NRF24L01_RxIrqFlag;
-volatile uint8_t Receive_loss;    /* 遥控失联计数 */
-uint16_t down_cnt = 0;            /* 降油门周期计数 */
-#define DOWN_PERIOD 4             /* 越大降油门越慢 */
 
 /* 周期任务标志 */
 volatile uint8_t angle_update_flag = 0;
 volatile uint8_t angle_rate_update_flag=0;
 volatile uint8_t crsf_tick = 0;         /* TIM1 触发 CRSF 解析 */
 volatile uint8_t PWM_Flag=0;						/* PWM 更新标志 */
+volatile uint32_t system_tick_5ms = 0;   /* 单调时基，允许自然回绕 */
+
+/* 遥控链路与启动/重连低油门锁。 */
+#define SYSTEM_TICK_PERIOD_MS       5u
+#define RC_FAILSAFE_TIMEOUT_MS      300u
+#define RC_FAILSAFE_TIMEOUT_TICKS   (RC_FAILSAFE_TIMEOUT_MS / SYSTEM_TICK_PERIOD_MS)
+#define RC_THROTTLE_LOW_PERCENT     5u
+#define MOTOR_PWM_MIN_COMPARE       500u
+
+volatile uint8_t  rc_link_ok = 0;
+volatile uint8_t  rc_failsafe_active = 1;
+volatile uint8_t  rc_throttle_unlocked = 0;
+volatile uint32_t rc_failsafe_count = 0;
+static uint32_t last_valid_rc_tick = 0;
 
 /* 主控侧 QMC5883P 变量：当前主运行路径中磁力计数据来自从控 */
 uint8_t qmc_init_ok = 0;        /* QMC 初始化状态：0=失败，1=成功 */
@@ -72,6 +83,44 @@ float    s_baro_alt;               /* 气压高度 (cm) */
 float    s_mag_yaw;                /* 磁力计航向 (0~360°) */
 
 char buf[32];
+
+static int16_t Clamp_Int16(int32_t value, int16_t min_value, int16_t max_value)
+{
+	if(value < min_value) return min_value;
+	if(value > max_value) return max_value;
+	return (int16_t)value;
+}
+
+/* 软件状态和硬件PWM同时归零，避免旧混控结果在下一周期重新输出。 */
+static void FlightControl_HoldSafe(void)
+{
+	Contrl = 0;
+	Set_Base_Duty(0.0f);
+	Roll_aim_Get(0.0f);
+	Pitch_aim_Get(0.0f);
+	Yaw_aim_Get(0.0f);
+	Drone_Motors_Stop();
+
+	PWM4_SetCompare1(MOTOR_PWM_MIN_COMPARE);
+	PWM4_SetCompare2(MOTOR_PWM_MIN_COMPARE);
+	PWM4_SetCompare3(MOTOR_PWM_MIN_COMPARE);
+	PWM4_SetCompare4(MOTOR_PWM_MIN_COMPARE);
+}
+
+static void RC_EnterFailsafe(void)
+{
+	if(rc_link_ok)
+	{
+		rc_failsafe_count++;
+	}
+
+	rc_link_ok = 0;
+	rc_failsafe_active = 1;
+	rc_throttle_unlocked = 0;
+	servo_status = 0;
+	MAG_intf = 0;
+	FlightControl_HoldSafe();
+}
 
 
 void SystemClock_Config(void)
@@ -136,6 +185,7 @@ int main(void)
 	IWDG_Init();
 	CRSF_Init();
 	SlaveMCU_Init();
+	RC_EnterFailsafe();
 
 	while (1)
 	{
@@ -154,7 +204,6 @@ int main(void)
 			__enable_irq();
 
 			Drone_Outer_Angle_PID_Control(roll_snapshot,pitch_snapshot,yaw_snapshot);
-			Receive_loss++;
 		}
 		else
 		{
@@ -214,10 +263,20 @@ LED1_ON();
 							BlueSerial_SendBuff(send_buff, idx);
 						}LED1_OFF();
 			PWM_Flag=0;
-			PWM4_SetCompare3(Get_Motor_Duty_FrontLeft());     /* 左前 */
-			PWM4_SetCompare2(Get_Motor_Duty_FrontRight());    /* 右前 */
-			PWM4_SetCompare4(Get_Motor_Duty_BackRight());     /* 右后 */
-			PWM4_SetCompare1(Get_Motor_Duty_BackLeft());      /* 左后 */
+			if(rc_failsafe_active || !rc_throttle_unlocked)
+			{
+				PWM4_SetCompare1(MOTOR_PWM_MIN_COMPARE);
+				PWM4_SetCompare2(MOTOR_PWM_MIN_COMPARE);
+				PWM4_SetCompare3(MOTOR_PWM_MIN_COMPARE);
+				PWM4_SetCompare4(MOTOR_PWM_MIN_COMPARE);
+			}
+			else
+			{
+				PWM4_SetCompare3(Get_Motor_Duty_FrontLeft());     /* 左前 */
+				PWM4_SetCompare2(Get_Motor_Duty_FrontRight());    /* 右前 */
+				PWM4_SetCompare4(Get_Motor_Duty_BackRight());     /* 右后 */
+				PWM4_SetCompare1(Get_Motor_Duty_BackLeft());      /* 左后 */
+			}
 			
 						
 		}
@@ -229,24 +288,52 @@ LED1_ON();
 	}
 	if(crsf_frame_received)
 		{
-				 
+			int32_t mapped_value;
+
 			crsf_frame_received = 0;
 			ReceiveSuccessCount++;
 			
-			/* 遥控通道映射 */
-			rc_roll  = (int16_t)(rcChannels[0] - 1500) / 5;      /* ±100 */
-			rc_pitch = (int16_t)(rcChannels[1] - 1500) / 5;      /* ±100 */
-			rc_thr   = (uint8_t)((rcChannels[2] - 1000) / 10);   /* 0~100 */
-			rc_yaw   = (int16_t)(rcChannels[3] - 1500) * 9 / 5;  /* ±900 */
+			/* 只有CRC正确的RC帧才能到达这里并刷新链路时间。 */
+			mapped_value = (int32_t)(rcChannels[0] - 1500) / 5;
+			rc_roll = Clamp_Int16(mapped_value, -100, 100);
+			mapped_value = (int32_t)(rcChannels[1] - 1500) / 5;
+			rc_pitch = Clamp_Int16(mapped_value, -100, 100);
+			mapped_value = (int32_t)(rcChannels[2] - 1000) / 10;
+			rc_thr = (uint8_t)Clamp_Int16(mapped_value, 0, 100);
+			mapped_value = (int32_t)(rcChannels[3] - 1500) * 9 / 5;
+			rc_yaw = Clamp_Int16(mapped_value, -900, 900);
 			servo_status = (rcChannels[4] > 1500) ? 1 : 0;
 			MAG_intf     = (rcChannels[5] > 1500) ? 1 : 0;
-			
-			 Contrl =rc_thr ;
-            Set_Base_Duty(Contrl);
-			
-            Pitch_aim_Get(rc_pitch/10.0f);
-            Roll_aim_Get(rc_roll/10.0f);
+
+			last_valid_rc_tick = system_tick_5ms;
+			rc_link_ok = 1;
+
+			/* 上电或重连后必须先确认低油门，防止高油门突然恢复。 */
+			if(rc_thr <= RC_THROTTLE_LOW_PERCENT)
+			{
+				rc_throttle_unlocked = 1;
+			}
+
+			if(rc_throttle_unlocked)
+			{
+				rc_failsafe_active = 0;
+				Contrl = rc_thr;
+				Set_Base_Duty(Contrl);
+				Pitch_aim_Get(rc_pitch / 10.0f);
+				Roll_aim_Get(rc_roll / 10.0f);
+			}
+			else
+			{
+				FlightControl_HoldSafe();
+			}
 		}
+
+	/* 使用无符号差值，system_tick_5ms回绕时仍可正确判断。 */
+	if(rc_link_ok &&
+	   (uint32_t)(system_tick_5ms - last_valid_rc_tick) >= RC_FAILSAFE_TIMEOUT_TICKS)
+	{
+		RC_EnterFailsafe();
+	}
 	if(servo_status==1)
 	{
 	LED2_ON();	
@@ -294,16 +381,20 @@ LED1_ON();
 		Drone_Altitude_Position_PID_Control(s_flow_alt, s_flow_x, s_flow_y);
 	}
 
-		PID_Param_Parse();
-		Pitch_Kp_Get(Pitch_Back_Kp());
-		Pitch_Ki_Get(Pitch_Back_Ki());
-		Pitch_Kd_Get(Pitch_Back_Kd()*0.01);
-		Roll_Kp_Get(Roll_Back_Kp());
-		Roll_Ki_Get(Roll_Back_Ki());
-		Roll_Kd_Get(Roll_Back_Kd()*0.01);
-		Yaw_Kp_Get(Yaw_Back_Kp());
-		Yaw_Ki_Get(Yaw_Back_Ki());
-		Yaw_Kd_Get(Yaw_Back_Kd());
+		{
+			uint32_t pid_update_mask = PID_Param_Parse();
+
+			/* 只应用本次实际收到且通过范围检查的参数。 */
+			if(pid_update_mask & PID_PARAM_UPDATE_PKP) Pitch_Kp_Get(Pitch_Back_Kp());
+			if(pid_update_mask & PID_PARAM_UPDATE_PKI) Pitch_Ki_Get(Pitch_Back_Ki());
+			if(pid_update_mask & PID_PARAM_UPDATE_PKD) Pitch_Kd_Get(Pitch_Back_Kd() * 0.01f);
+			if(pid_update_mask & PID_PARAM_UPDATE_RKP) Roll_Kp_Get(Roll_Back_Kp());
+			if(pid_update_mask & PID_PARAM_UPDATE_RKI) Roll_Ki_Get(Roll_Back_Ki());
+			if(pid_update_mask & PID_PARAM_UPDATE_RKD) Roll_Kd_Get(Roll_Back_Kd() * 0.01f);
+			if(pid_update_mask & PID_PARAM_UPDATE_YKP) Yaw_Kp_Get(Yaw_Back_Kp());
+			if(pid_update_mask & PID_PARAM_UPDATE_YKI) Yaw_Ki_Get(Yaw_Back_Ki());
+			if(pid_update_mask & PID_PARAM_UPDATE_YKD) Yaw_Kd_Get(Yaw_Back_Kd());
+		}
 	}
 }
 
@@ -349,6 +440,7 @@ void TIM1_UP_IRQHandler(void)
 {
 	if (TIM_GetITStatus(TIM1, TIM_IT_Update) == SET)
 	{
+		system_tick_5ms++;
 		crsf_tick = 1;
 		TIM_ClearITPendingBit(TIM1, TIM_IT_Update);
 	}

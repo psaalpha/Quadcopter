@@ -13,6 +13,7 @@
   */
 
 #include "stm32f10x.h"
+#include "BlueSerial.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -22,7 +23,7 @@
  * 全局变量
  * ============================================ */
 char    BlueSerial_RxPacket[100];
-uint8_t BlueSerial_RxFlag;
+volatile uint8_t BlueSerial_RxFlag;
 
 float PKp  = 0;   /* Pitch Kp */
 float PKi  = 0;   /* Pitch Ki */
@@ -389,99 +390,149 @@ void BlueSerial_Printf(char *format, ...)
 /* ============================================
  * 解析蓝牙调参协议
  * ============================================ */
-void PID_Param_Parse(void)
+uint32_t PID_Param_Parse(void)
 {
+    uint32_t updated_mask = 0;
+
     if (BlueSerial_RxFlag == 1)
     {
         char *tag = strtok(BlueSerial_RxPacket, ",");
-        if (tag == NULL)
-        {
-            BlueSerial_RxFlag = 0;
-            return;
-        }
-
-        if (strcmp(tag, "slider") == 0)
+        if (tag != NULL && strcmp(tag, "slider") == 0)
         {
             char *param_name = strtok(NULL, ",");
             char *param_val  = strtok(NULL, ",");
+            char *extra      = strtok(NULL, ",");
 
-            if (param_name == NULL || param_val == NULL)
+            if (param_name != NULL && param_val != NULL && extra == NULL)
             {
-                BlueSerial_RxFlag = 0;
-                return;
-            }
+                char *end_ptr;
+                float val = (float)strtod(param_val, &end_ptr);
 
-            float val = atof(param_val);
-
-            if (strcmp(param_name, "PKp") == 0)
-            {
-                if (val >= 0.0f && val <= 40.0f) PKp = val;
-            }
-            else if (strcmp(param_name, "PKi") == 0)
-            {
-                if (val >= 0.0f && val <= 1.0f) PKi = val;
-            }
-            else if (strcmp(param_name, "PKd") == 0)
-            {
-                if (val >= 0.0f && val <= 5.0f) PKd = val;
-            }
-            else if (strcmp(param_name, "Mid") == 0)
-            {
-                if (val >= -10.0f && val <= 10.0f) Mid = val;
-            }
-            else if (strcmp(param_name, "RKp") == 0)
-            {
-                if (val >= 0.0f && val <= 10.0f) RKp = val;
-            }
-            else if (strcmp(param_name, "RKd") == 0)
-            {
-                if (val >= 0.0f && val <= 10.0f) RKd = val;
-            }
-            else if (strcmp(param_name, "RKi") == 0)
-            {
-                if (val >= 0.0f && val <= 10.0f) RKi = val;
-            }
-            else if (strcmp(param_name, "YKp") == 0)
-            {
-                if (val >= 0.0f && val <= 10.0f) YKp = val;
-            }
-            else if (strcmp(param_name, "YKd") == 0)
-            {
-                if (val >= 0.0f && val <= 10.0f) YKd = val;
-            }
-            else if (strcmp(param_name, "YKi") == 0)
-            {
-                if (val >= 0.0f && val <= 10.0f) YKi = val;
-            }
-            else if (strcmp(param_name, "PAKp") == 0)
-            {
-                if (val >= 0.0f && val <= 10.0f) PAKp = val;
-            }
-            else if (strcmp(param_name, "RAKp") == 0)
-            {
-                if (val >= 0.0f && val <= 10.0f) RAKp = val;
-            }
-            else if (strcmp(param_name, "YAKp") == 0)
-            {
-                if (val >= 0.0f && val <= 10.0f) YAKp = val;
-            }
-            else if (strcmp(param_name, "PAIM") == 0)
-            {
-                if (val >= -100.0f && val <= 100.0f) PAIM = val;
-            }
-            else if (strcmp(param_name, "RAIM") == 0)
-            {
-                if (val >= -100.0f && val <= 100.0f) RAIM = val;
-            }
-            else if (strcmp(param_name, "Contrl_Speed") == 0)
-            {
-                if (val >= 0 && val <= 100) Contrl_Speed = val;
+                /* strtod必须完整消费数值字符串，非法文本不能被当作0。 */
+                if (end_ptr != param_val && *end_ptr == '\0')
+                {
+                    if (strcmp(param_name, "PKp") == 0)
+                    {
+                        if (val >= 0.0f && val <= 40.0f) {
+                            PKp = val;
+                            updated_mask |= PID_PARAM_UPDATE_PKP;
+                        }
+                    }
+                    else if (strcmp(param_name, "PKi") == 0)
+                    {
+                        if (val >= 0.0f && val <= 1.0f) {
+                            PKi = val;
+                            updated_mask |= PID_PARAM_UPDATE_PKI;
+                        }
+                    }
+                    else if (strcmp(param_name, "PKd") == 0)
+                    {
+                        if (val >= 0.0f && val <= 5.0f) {
+                            PKd = val;
+                            updated_mask |= PID_PARAM_UPDATE_PKD;
+                        }
+                    }
+                    else if (strcmp(param_name, "Mid") == 0)
+                    {
+                        if (val >= -10.0f && val <= 10.0f) {
+                            Mid = val;
+                            updated_mask |= PID_PARAM_UPDATE_MID;
+                        }
+                    }
+                    else if (strcmp(param_name, "RKp") == 0)
+                    {
+                        if (val >= 0.0f && val <= 10.0f) {
+                            RKp = val;
+                            updated_mask |= PID_PARAM_UPDATE_RKP;
+                        }
+                    }
+                    else if (strcmp(param_name, "RKd") == 0)
+                    {
+                        if (val >= 0.0f && val <= 10.0f) {
+                            RKd = val;
+                            updated_mask |= PID_PARAM_UPDATE_RKD;
+                        }
+                    }
+                    else if (strcmp(param_name, "RKi") == 0)
+                    {
+                        if (val >= 0.0f && val <= 10.0f) {
+                            RKi = val;
+                            updated_mask |= PID_PARAM_UPDATE_RKI;
+                        }
+                    }
+                    else if (strcmp(param_name, "YKp") == 0)
+                    {
+                        if (val >= 0.0f && val <= 10.0f) {
+                            YKp = val;
+                            updated_mask |= PID_PARAM_UPDATE_YKP;
+                        }
+                    }
+                    else if (strcmp(param_name, "YKd") == 0)
+                    {
+                        if (val >= 0.0f && val <= 10.0f) {
+                            YKd = val;
+                            updated_mask |= PID_PARAM_UPDATE_YKD;
+                        }
+                    }
+                    else if (strcmp(param_name, "YKi") == 0)
+                    {
+                        if (val >= 0.0f && val <= 10.0f) {
+                            YKi = val;
+                            updated_mask |= PID_PARAM_UPDATE_YKI;
+                        }
+                    }
+                    else if (strcmp(param_name, "PAKp") == 0)
+                    {
+                        if (val >= 0.0f && val <= 10.0f) {
+                            PAKp = val;
+                            updated_mask |= PID_PARAM_UPDATE_PAKP;
+                        }
+                    }
+                    else if (strcmp(param_name, "RAKp") == 0)
+                    {
+                        if (val >= 0.0f && val <= 10.0f) {
+                            RAKp = val;
+                            updated_mask |= PID_PARAM_UPDATE_RAKP;
+                        }
+                    }
+                    else if (strcmp(param_name, "YAKp") == 0)
+                    {
+                        if (val >= 0.0f && val <= 10.0f) {
+                            YAKp = val;
+                            updated_mask |= PID_PARAM_UPDATE_YAKP;
+                        }
+                    }
+                    else if (strcmp(param_name, "PAIM") == 0)
+                    {
+                        if (val >= -100.0f && val <= 100.0f) {
+                            PAIM = val;
+                            updated_mask |= PID_PARAM_UPDATE_PAIM;
+                        }
+                    }
+                    else if (strcmp(param_name, "RAIM") == 0)
+                    {
+                        if (val >= -100.0f && val <= 100.0f) {
+                            RAIM = val;
+                            updated_mask |= PID_PARAM_UPDATE_RAIM;
+                        }
+                    }
+                    else if (strcmp(param_name, "Contrl_Speed") == 0)
+                    {
+                        if (val >= 0.0f && val <= 100.0f) {
+                            Contrl_Speed = val;
+                            updated_mask |= PID_PARAM_UPDATE_CONTROL_SPEED;
+                        }
+                    }
+                }
             }
         }
 
-        BlueSerial_RxFlag = 0;
+        /* 保持标志为1时ISR不会写入缓冲区；清空完成后再释放。 */
         memset(BlueSerial_RxPacket, 0, 100);
+        BlueSerial_RxFlag = 0;
     }
+
+    return updated_mask;
 }
 
 /* ============================================

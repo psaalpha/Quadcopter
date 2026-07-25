@@ -18,6 +18,8 @@
 /* 遥控通道输出，单位映射到 1000~2000us */
 int16_t rcChannels[16] = {0};
 volatile uint8_t crsf_frame_received = 0;
+volatile uint32_t crsf_valid_frame_count = 0;
+volatile uint32_t crsf_crc_error_count = 0;
 
 /* DMA 环形接收缓冲 */
 static uint8_t  crsf_dma_buf[CRSF_DMA_BUF_SIZE] __attribute__((aligned(4)));
@@ -37,11 +39,15 @@ static void CRSF_ParseFrame(const uint8_t *frame, uint8_t len);
 static void CRSF_UnpackRC(const uint8_t *payload);
 static void CRSF_FeedByte(uint8_t byte);
 static void CRSF_ReadDMABuffer(void);
+static uint8_t CRSF_CRC8_DVB_S2(const uint8_t *data, uint8_t len);
 
 /* 初始化 CRSF 接收链路。 */
 void CRSF_Init(void)
 {
     memset(rcChannels, 0, sizeof(rcChannels));
+    crsf_frame_received = 0;
+    crsf_valid_frame_count = 0;
+    crsf_crc_error_count = 0;
 
     /* 安全默认值：横滚/俯仰/偏航居中，油门最低。 */
     rcChannels[0] = 1500;
@@ -192,7 +198,7 @@ static void CRSF_FeedByte(uint8_t byte)
     {
         /* 长度字节包含 type + payload + crc。 */
         crsf_expected_len = byte;
-        if (crsf_expected_len > CRSF_MAX_FRAME_LEN)
+        if (crsf_expected_len < 2u || crsf_expected_len > CRSF_MAX_FRAME_LEN)
         {
             /* 长度非法，放弃当前帧。 */
             crsf_in_frame = 0;
@@ -212,17 +218,33 @@ static void CRSF_FeedByte(uint8_t byte)
 /* 解析完整 CRSF 帧，格式：[sync][len][type][payload...][crc]。 */
 static void CRSF_ParseFrame(const uint8_t *frame, uint8_t len)
 {
-    if (len < 4) return; /* 最小帧：sync + len + type + crc */
+    uint8_t calculated_crc;
+    uint8_t received_crc;
+    uint8_t type;
 
-    uint8_t type = frame[2];
+    if (len < 4u) return; /* 最小帧：sync + len + type + crc */
+    if (len != (uint8_t)(frame[1] + 2u)) return;
+
+    /* CRSF CRC覆盖type和payload，不包含sync、length和末尾CRC。 */
+    received_crc = frame[len - 1u];
+    calculated_crc = CRSF_CRC8_DVB_S2(&frame[2], (uint8_t)(len - 3u));
+    if (calculated_crc != received_crc)
+    {
+        crsf_crc_error_count++;
+        return;
+    }
+
+    type = frame[2];
 
     switch (type)
     {
     case CRSF_TYPE_RC_CHANNELS:
         /* RC 通道 payload 为 22 字节：16 通道 * 11 bit。 */
-        if (len >= 26) /* sync(1) + len(1) + type(1) + 22 + crc(1) */
+        if (frame[1] == (CRSF_RC_CHANNELS_PAYLOAD + 2u) &&
+            len == (CRSF_RC_CHANNELS_PAYLOAD + 4u))
         {
             CRSF_UnpackRC(&frame[3]);
+            crsf_valid_frame_count++;
             crsf_frame_received = 1;
         }
         break;
@@ -236,6 +258,31 @@ static void CRSF_ParseFrame(const uint8_t *frame, uint8_t len)
         /* 其他帧类型当前不处理。 */
         break;
     }
+}
+
+/* CRSF标准CRC8 DVB-S2，Polynomial = 0xD5。 */
+static uint8_t CRSF_CRC8_DVB_S2(const uint8_t *data, uint8_t len)
+{
+    uint8_t crc = 0;
+    uint8_t bit;
+
+    while (len--)
+    {
+        crc ^= *data++;
+        for (bit = 0; bit < 8u; bit++)
+        {
+            if (crc & 0x80u)
+            {
+                crc = (uint8_t)((crc << 1) ^ 0xD5u);
+            }
+            else
+            {
+                crc <<= 1;
+            }
+        }
+    }
+
+    return crc;
 }
 
 /* 解包 16 个 RC 通道。
