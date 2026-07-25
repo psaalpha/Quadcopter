@@ -205,3 +205,15 @@ target_include_directories(
     ../../Shared/Protocol
     ../../Shared/Services
 )
+
+add_quadcopter_host_test(
+    freertos_task_plan_test
+    freertos_task_plan
+    test_freertos_task_plan.c
+    ../../Master_MCU/App/freertos_task_plan.c
+)
+target_include_directories(
+    freertos_task_plan_test
+    PRIVATE
+    ../../Master_MCU/App
+)

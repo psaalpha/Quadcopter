@@ -1,5 +1,9 @@
 # FreeRTOS 任务架构设计
 
+本文记录早期四个协作式执行步骤的 RTOS-ready 约束。按 Sensor、Control、
+Communication、Safety、Logger 五任务划分的正式迁移蓝图见
+[FreeRTOS 迁移计划](FREERTOS_MIGRATION_PLAN.md)。
+
 ## 1. 当前状态
 
 当前固件仍使用经过验证的协作式调度器，FreeRTOS 内核没有加入工程，也没有

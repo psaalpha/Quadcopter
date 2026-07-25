@@ -1051,6 +1051,16 @@
               <FilePath>.\App\app_task_model.h</FilePath>
             </File>
             <File>
+              <FileName>freertos_task_plan.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\App\freertos_task_plan.c</FilePath>
+            </File>
+            <File>
+              <FileName>freertos_task_plan.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\App\freertos_task_plan.h</FilePath>
+            </File>
+            <File>
               <FileName>app_scheduler.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\App\app_scheduler.c</FilePath>

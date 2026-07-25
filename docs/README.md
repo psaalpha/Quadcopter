@@ -16,6 +16,7 @@
 8. [主控安全状态](SAFETY.md)：理解电机放行和失联行为。
 9. [系统可靠性设计](SYSTEM_RELIABILITY.md)：理解 Watchdog、Fault 和系统 Failsafe。
 10. [FreeRTOS 任务架构](FREERTOS_ARCHITECTURE.md)：理解任务、优先级、栈和迁移门槛。
+    五任务的阶段化方案见 [FreeRTOS 迁移计划](FREERTOS_MIGRATION_PLAN.md)。
 11. [参数管理系统](PARAMETERS.md)：理解参数校验、版本、CRC 和持久化边界。
 12. [结构化日志系统](LOGGING.md)：理解固定记录、缓冲、并发和输出后端。
 13. [Flight Data Logger](FLIGHT_DATA_LOGGER.md)：理解飞行快照、带宽和非阻塞输出。
