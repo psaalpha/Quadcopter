@@ -65,6 +65,7 @@ Keil/ARMCC 双目标构建：
 - [工程文档索引与学习路径](docs/README.md)
 - [项目结构与模块职责](docs/PROJECT_STRUCTURE.md)
 - [总体架构](docs/ARCHITECTURE.md)
+- [企业级嵌入式升级计划](docs/EMBEDDED_ENGINEERING_UPGRADE.md)
 - [驱动接口规范](docs/DRIVER_API.md)
 - [开发维护指南](docs/DEVELOPMENT_GUIDE.md)
 - [构建与验证](docs/BUILD.md)
