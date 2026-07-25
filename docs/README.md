@@ -17,12 +17,13 @@
 10. [FreeRTOS 任务架构](FREERTOS_ARCHITECTURE.md)：理解任务、优先级、栈和迁移门槛。
 11. [参数管理系统](PARAMETERS.md)：理解参数校验、版本、CRC 和持久化边界。
 12. [结构化日志系统](LOGGING.md)：理解固定记录、缓冲、并发和输出后端。
-13. [构建与验证](BUILD.md)：建立本地编译环境。
-14. [自动测试说明](TESTING.md)：理解质量门槛和测试范围。
-15. [开发维护指南](DEVELOPMENT_GUIDE.md)：按标准流程修改项目。
-16. [运行维护手册](MAINTENANCE.md)：定位常见构建、通信和硬件问题。
-17. [发布流程](RELEASE.md)：生成、验证和烧录匹配固件。
-18. [后续路线](ROADMAP.md)：了解当前边界和下一阶段工作。
+13. [Flight Data Logger](FLIGHT_DATA_LOGGER.md)：理解飞行快照、带宽和非阻塞输出。
+14. [构建与验证](BUILD.md)：建立本地编译环境。
+15. [自动测试说明](TESTING.md)：理解质量门槛和测试范围。
+16. [开发维护指南](DEVELOPMENT_GUIDE.md)：按标准流程修改项目。
+17. [运行维护手册](MAINTENANCE.md)：定位常见构建、通信和硬件问题。
+18. [发布流程](RELEASE.md)：生成、验证和烧录匹配固件。
+19. [后续路线](ROADMAP.md)：了解当前边界和下一阶段工作。
 
 ## 按角色阅读
 

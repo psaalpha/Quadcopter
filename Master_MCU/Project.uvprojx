@@ -950,6 +950,16 @@
               <FileType>5</FileType>
               <FilePath>..\Shared\Services\event_log.h</FilePath>
             </File>
+            <File>
+              <FileName>flight_data_logger.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Services\flight_data_logger.c</FilePath>
+            </File>
+            <File>
+              <FileName>flight_data_logger.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Services\flight_data_logger.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

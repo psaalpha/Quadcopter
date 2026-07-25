@@ -165,3 +165,15 @@ target_include_directories(
     PRIVATE
     ../../Shared/HAL
 )
+
+add_quadcopter_host_test(
+    flight_data_logger_test
+    flight_data_logger
+    test_flight_data_logger.c
+    ../../Shared/Services/flight_data_logger.c
+)
+target_include_directories(
+    flight_data_logger_test
+    PRIVATE
+    ../../Shared/Services
+)

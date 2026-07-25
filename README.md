@@ -86,6 +86,7 @@ Keil/ARMCC 双目标构建：
 - [FreeRTOS 任务架构设计](docs/FREERTOS_ARCHITECTURE.md)
 - [参数管理系统](docs/PARAMETERS.md)
 - [结构化日志系统](docs/LOGGING.md)
+- [Flight Data Logger](docs/FLIGHT_DATA_LOGGER.md)
 - [开发维护指南](docs/DEVELOPMENT_GUIDE.md)
 - [构建与验证](docs/BUILD.md)
 - [自动测试说明](docs/TESTING.md)
