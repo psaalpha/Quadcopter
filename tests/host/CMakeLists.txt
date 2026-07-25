@@ -84,3 +84,35 @@ else()
 endif()
 
 add_test(NAME driver_status COMMAND driver_status_test)
+
+add_executable(
+    status_led_test
+    test_status_led.c
+    fakes/fake_hal_gpio.c
+    ../../Shared/Drivers/driver_status.c
+    ../../Shared/Drivers/status_led.c
+    ../../Shared/HAL/hal_gpio.c
+)
+
+target_include_directories(
+    status_led_test
+    PRIVATE
+    fakes
+    ../../Shared/Drivers
+    ../../Shared/HAL
+)
+
+if(MSVC)
+    target_compile_options(status_led_test PRIVATE /W4 /WX)
+else()
+    target_compile_options(
+        status_led_test
+        PRIVATE
+        -Wall
+        -Wextra
+        -Werror
+        -pedantic
+    )
+endif()
+
+add_test(NAME status_led COMMAND status_led_test)

@@ -183,6 +183,9 @@ DriverStatus Uart_Send(const uint8_t *data, uint16_t length);
 | `BMP390` | 采用 Bosch 回调式底层接口 | 明确 wrapper 与 vendor 源码边界 |
 | `OLED/OSD` | 功能接口直观 | 输入字符串使用 `const`，补充边界约束 |
 
+`LED` 已作为第一项迁移示例拆分为通用 `StatusLed`、`HalGpio` 和 STM32F1
+适配器，同时保留旧入口。详细依赖和迁移规则见 [HAL 抽象设计](HAL.md)。
+
 ## 驱动迁移顺序
 
 建议按风险由低到高进行：

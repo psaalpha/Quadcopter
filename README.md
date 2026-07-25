@@ -67,6 +67,7 @@ Keil/ARMCC 双目标构建：
 - [总体架构](docs/ARCHITECTURE.md)
 - [企业级嵌入式升级计划](docs/EMBEDDED_ENGINEERING_UPGRADE.md)
 - [驱动接口规范](docs/DRIVER_API.md)
+- [HAL 抽象设计](docs/HAL.md)
 - [开发维护指南](docs/DEVELOPMENT_GUIDE.md)
 - [构建与验证](docs/BUILD.md)
 - [自动测试说明](docs/TESTING.md)
