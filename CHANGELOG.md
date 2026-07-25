@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-07-25 - Share the STM32F1 platform layer
+
+### Changed
+- Consolidated the byte-identical CMSIS/startup sources used by both
+  controllers under `Platform/STM32F1/CMSIS`.
+- Consolidated the byte-identical STM32F10x Standard Peripheral Library under
+  `Platform/STM32F1/SPL`.
+- Consolidated the common delay service under `Platform/STM32F1/System`.
+- Updated both Keil projects to consume the shared platform sources directly,
+  eliminating 61 duplicate source and header files.
+
+### Compatibility
+- The master and slave application, hardware, and user source trees remain
+  independent.
+- No control algorithm, interrupt timing, pin assignment, or wire protocol was
+  changed in this milestone.
+
+### Validation
+- Rebuilt both `Master_MCU/Project.uvprojx` and
+  `Slave_MCU/Project.uvprojx` with ARMCC 5.06 update 7.
+- Master result: `0 Error(s), 0 Warning(s)`; Code `28236`, RO-data `892`,
+  RW-data `576`, ZI-data `2592` bytes.
+- Slave result: `0 Error(s), 0 Warning(s)`; Code `29478`, RO-data `2186`,
+  RW-data `96`, ZI-data `1736` bytes.
+
 ## 2026-07-25 - Harden RC input and motor failsafe
 
 ### Fixed
