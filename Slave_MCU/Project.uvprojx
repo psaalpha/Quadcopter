@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;.\User;..\Platform\STM32F1\System;.\Hardware;..\Shared\Protocol;..\Shared\Drivers;..\Shared\Services;..\Shared\Safety</IncludePath>
+              <IncludePath>..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;.\User;..\Platform\STM32F1\System;.\Hardware;..\Shared\Protocol;..\Shared\Drivers;..\Shared\HAL;..\Shared\Services;..\Shared\Safety</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -788,6 +788,66 @@
               <FileName>driver_status.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\Shared\Drivers\driver_status.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Shared HAL</GroupName>
+          <Files>
+            <File>
+              <FileName>hal_status.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\HAL\hal_status.h</FilePath>
+            </File>
+            <File>
+              <FileName>hal_uart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\HAL\hal_uart.c</FilePath>
+            </File>
+            <File>
+              <FileName>hal_uart.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\HAL\hal_uart.h</FilePath>
+            </File>
+            <File>
+              <FileName>hal_i2c.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\HAL\hal_i2c.c</FilePath>
+            </File>
+            <File>
+              <FileName>hal_i2c.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\HAL\hal_i2c.h</FilePath>
+            </File>
+            <File>
+              <FileName>hal_spi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\HAL\hal_spi.c</FilePath>
+            </File>
+            <File>
+              <FileName>hal_spi.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\HAL\hal_spi.h</FilePath>
+            </File>
+            <File>
+              <FileName>hal_pwm.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\HAL\hal_pwm.c</FilePath>
+            </File>
+            <File>
+              <FileName>hal_pwm.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\HAL\hal_pwm.h</FilePath>
+            </File>
+            <File>
+              <FileName>hal_timer.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\HAL\hal_timer.c</FilePath>
+            </File>
+            <File>
+              <FileName>hal_timer.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\HAL\hal_timer.h</FilePath>
             </File>
           </Files>
         </Group>

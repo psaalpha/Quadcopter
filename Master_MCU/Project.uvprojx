@@ -870,6 +870,61 @@
               <FileType>5</FileType>
               <FilePath>..\Shared\HAL\hal_gpio.h</FilePath>
             </File>
+            <File>
+              <FileName>hal_status.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\HAL\hal_status.h</FilePath>
+            </File>
+            <File>
+              <FileName>hal_uart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\HAL\hal_uart.c</FilePath>
+            </File>
+            <File>
+              <FileName>hal_uart.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\HAL\hal_uart.h</FilePath>
+            </File>
+            <File>
+              <FileName>hal_i2c.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\HAL\hal_i2c.c</FilePath>
+            </File>
+            <File>
+              <FileName>hal_i2c.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\HAL\hal_i2c.h</FilePath>
+            </File>
+            <File>
+              <FileName>hal_spi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\HAL\hal_spi.c</FilePath>
+            </File>
+            <File>
+              <FileName>hal_spi.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\HAL\hal_spi.h</FilePath>
+            </File>
+            <File>
+              <FileName>hal_pwm.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\HAL\hal_pwm.c</FilePath>
+            </File>
+            <File>
+              <FileName>hal_pwm.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\HAL\hal_pwm.h</FilePath>
+            </File>
+            <File>
+              <FileName>hal_timer.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\HAL\hal_timer.c</FilePath>
+            </File>
+            <File>
+              <FileName>hal_timer.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\HAL\hal_timer.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

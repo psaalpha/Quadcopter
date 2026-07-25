@@ -149,3 +149,19 @@ target_include_directories(
     PRIVATE
     ../../Shared/Safety
 )
+
+add_quadcopter_host_test(
+    hal_interfaces_test
+    hal_interfaces
+    test_hal_interfaces.c
+    ../../Shared/HAL/hal_uart.c
+    ../../Shared/HAL/hal_i2c.c
+    ../../Shared/HAL/hal_spi.c
+    ../../Shared/HAL/hal_pwm.c
+    ../../Shared/HAL/hal_timer.c
+)
+target_include_directories(
+    hal_interfaces_test
+    PRIVATE
+    ../../Shared/HAL
+)

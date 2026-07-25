@@ -3,15 +3,7 @@
 
 #include <stdint.h>
 
-typedef enum
-{
-    HAL_STATUS_OK = 0,
-    HAL_STATUS_INVALID_ARGUMENT,
-    HAL_STATUS_NOT_INITIALIZED,
-    HAL_STATUS_BUSY,
-    HAL_STATUS_IO_ERROR,
-    HAL_STATUS_UNSUPPORTED
-} HalStatus;
+#include "hal_status.h"
 
 typedef enum
 {

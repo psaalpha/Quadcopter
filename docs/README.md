@@ -10,6 +10,7 @@
 4. [硬件资源与引脚](PINOUT.md)：理解 MCU 外设和引脚占用。
 5. [驱动接口规范](DRIVER_API.md)：理解现有驱动和新驱动的接口要求。
 6. [HAL 抽象设计](HAL.md)：理解设备驱动、HAL、BSP 和测试替身的关系。
+   完整总线和定时器契约见 [HAL 总体设计](HAL_DESIGN.md)。
 7. [主从通信协议](PROTOCOL.md)：理解双 MCU 数据交换。
 8. [主控安全状态](SAFETY.md)：理解电机放行和失联行为。
 9. [系统可靠性设计](SYSTEM_RELIABILITY.md)：理解 Watchdog、Fault 和系统 Failsafe。

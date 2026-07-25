@@ -1,5 +1,8 @@
 # HAL 抽象设计
 
+完整 UART、I2C、SPI、PWM、TIMER 分层与迁移规则见
+[HAL 总体设计](HAL_DESIGN.md)。本文保留首个 GPIO/LED 迁移案例。
+
 ## 1. 目的
 
 HAL（Hardware Abstraction Layer）用于隔离“设备行为”和“芯片访问方式”。
