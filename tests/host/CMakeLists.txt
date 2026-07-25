@@ -144,3 +144,30 @@ else()
 endif()
 
 add_test(NAME app_task_model COMMAND app_task_model_test)
+
+add_executable(
+    parameter_store_test
+    test_parameter_store.c
+    ../../Shared/Services/parameter_store.c
+)
+
+target_include_directories(
+    parameter_store_test
+    PRIVATE
+    ../../Shared/Services
+)
+
+if(MSVC)
+    target_compile_options(parameter_store_test PRIVATE /W4 /WX)
+else()
+    target_compile_options(
+        parameter_store_test
+        PRIVATE
+        -Wall
+        -Wextra
+        -Werror
+        -pedantic
+    )
+endif()
+
+add_test(NAME parameter_store COMMAND parameter_store_test)

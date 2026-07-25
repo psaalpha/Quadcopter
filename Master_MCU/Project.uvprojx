@@ -341,7 +341,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;.\User;..\Platform\STM32F1\System;.\Hardware;..\Shared\Protocol;..\Shared\Drivers;..\Shared\HAL;.\App;.\BSP</IncludePath>
+              <IncludePath>..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;.\User;..\Platform\STM32F1\System;.\Hardware;..\Shared\Protocol;..\Shared\Drivers;..\Shared\HAL;..\Shared\Services;.\App;.\BSP</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -869,6 +869,21 @@
               <FileName>hal_gpio.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\Shared\HAL\hal_gpio.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Shared Services</GroupName>
+          <Files>
+            <File>
+              <FileName>parameter_store.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Services\parameter_store.c</FilePath>
+            </File>
+            <File>
+              <FileName>parameter_store.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Services\parameter_store.h</FilePath>
             </File>
           </Files>
         </Group>

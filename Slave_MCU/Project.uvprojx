@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;.\User;..\Platform\STM32F1\System;.\Hardware;..\Shared\Protocol;..\Shared\Drivers</IncludePath>
+              <IncludePath>..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;.\User;..\Platform\STM32F1\System;.\Hardware;..\Shared\Protocol;..\Shared\Drivers;..\Shared\Services</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -788,6 +788,21 @@
               <FileName>driver_status.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\Shared\Drivers\driver_status.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Shared Services</GroupName>
+          <Files>
+            <File>
+              <FileName>parameter_store.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Services\parameter_store.c</FilePath>
+            </File>
+            <File>
+              <FileName>parameter_store.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Services\parameter_store.h</FilePath>
             </File>
           </Files>
         </Group>
