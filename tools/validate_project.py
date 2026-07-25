@@ -35,6 +35,7 @@ REQUIRED_FILES = (
     "docs/CODING_STANDARD.md",
     "docs/STATIC_ANALYSIS.md",
     "docs/DOXYGEN.md",
+    "docs/DOXYGEN_MAINPAGE.md",
     "docs/LEARNING_ROADMAP.md",
     "docs/learning/PHASE_7_ENGINEERING_QUALITY.md",
     "docs/HAL.md",

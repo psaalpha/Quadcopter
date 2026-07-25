@@ -35,6 +35,7 @@ build/doxygen-warnings.log
 - `Master_MCU/App`：应用策略与任务计划；
 - `Master_MCU/BSP`：板级契约；
 - `docs` 和根 README：架构与维护文档；
+- `CONTRIBUTING.md` 与 `tests/host/README.md`：协作和测试扩展规则；
 - 不扫描 CMSIS、SPL、Objects、Listings 和 build 输出。
 
 ## 审查清单
