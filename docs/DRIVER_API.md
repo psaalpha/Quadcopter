@@ -61,6 +61,13 @@ typedef enum
 } DriverStatus;
 ```
 
+该契约已经在
+[`Shared/Drivers/driver_status.h`](../Shared/Drivers/driver_status.h) 实现。
+新驱动应直接复用 `DriverStatus`、`DriverState` 和 `DriverHealth`，不要为
+“成功、忙、超时、I/O 错误”重复定义另一组等价状态。`DriverHealth_Record()`
+只记录结果，不隐式切换生命周期；进入 `DEGRADED`、`FAULT` 或恢复
+`READY` 必须由设备驱动的明确策略决定。
+
 状态类型可以由模块自定义，但必须满足：
 
 - `0` 表示成功；

@@ -57,3 +57,30 @@ else()
 endif()
 
 add_test(NAME flight_safety COMMAND flight_safety_test)
+
+add_executable(
+    driver_status_test
+    test_driver_status.c
+    ../../Shared/Drivers/driver_status.c
+)
+
+target_include_directories(
+    driver_status_test
+    PRIVATE
+    ../../Shared/Drivers
+)
+
+if(MSVC)
+    target_compile_options(driver_status_test PRIVATE /W4 /WX)
+else()
+    target_compile_options(
+        driver_status_test
+        PRIVATE
+        -Wall
+        -Wextra
+        -Werror
+        -pedantic
+    )
+endif()
+
+add_test(NAME driver_status COMMAND driver_status_test)
