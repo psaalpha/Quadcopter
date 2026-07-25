@@ -113,3 +113,39 @@ target_include_directories(
     PRIVATE
     ../../Shared/Services
 )
+
+add_quadcopter_host_test(
+    watchdog_manager_test
+    watchdog_manager
+    test_watchdog_manager.c
+    ../../Shared/Safety/watchdog_manager.c
+)
+target_include_directories(
+    watchdog_manager_test
+    PRIVATE
+    ../../Shared/Safety
+)
+
+add_quadcopter_host_test(
+    fault_manager_test
+    fault_manager
+    test_fault_manager.c
+    ../../Shared/Safety/fault_manager.c
+)
+target_include_directories(
+    fault_manager_test
+    PRIVATE
+    ../../Shared/Safety
+)
+
+add_quadcopter_host_test(
+    failsafe_state_machine_test
+    failsafe_state_machine
+    test_failsafe_state_machine.c
+    ../../Shared/Safety/failsafe_state_machine.c
+)
+target_include_directories(
+    failsafe_state_machine_test
+    PRIVATE
+    ../../Shared/Safety
+)

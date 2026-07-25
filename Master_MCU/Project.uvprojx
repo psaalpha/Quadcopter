@@ -341,7 +341,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;.\User;..\Platform\STM32F1\System;.\Hardware;..\Shared\Protocol;..\Shared\Drivers;..\Shared\HAL;..\Shared\Services;.\App;.\BSP</IncludePath>
+              <IncludePath>..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;.\User;..\Platform\STM32F1\System;.\Hardware;..\Shared\Protocol;..\Shared\Drivers;..\Shared\HAL;..\Shared\Services;..\Shared\Safety;.\App;.\BSP</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -894,6 +894,41 @@
               <FileName>event_log.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\Shared\Services\event_log.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Shared Safety</GroupName>
+          <Files>
+            <File>
+              <FileName>watchdog_manager.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Safety\watchdog_manager.c</FilePath>
+            </File>
+            <File>
+              <FileName>watchdog_manager.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Safety\watchdog_manager.h</FilePath>
+            </File>
+            <File>
+              <FileName>fault_manager.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Safety\fault_manager.c</FilePath>
+            </File>
+            <File>
+              <FileName>fault_manager.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Safety\fault_manager.h</FilePath>
+            </File>
+            <File>
+              <FileName>failsafe_state_machine.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Safety\failsafe_state_machine.c</FilePath>
+            </File>
+            <File>
+              <FileName>failsafe_state_machine.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Safety\failsafe_state_machine.h</FilePath>
             </File>
           </Files>
         </Group>

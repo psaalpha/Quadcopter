@@ -91,6 +91,7 @@ Keil/ARMCC 双目标构建：
 - [硬件资源与引脚](docs/PINOUT.md)
 - [主从通信协议](docs/PROTOCOL.md)
 - [安全状态机](docs/SAFETY.md)
+- [系统可靠性设计](docs/SYSTEM_RELIABILITY.md)
 - [运行维护手册](docs/MAINTENANCE.md)
 - [固件发布流程](docs/RELEASE.md)
 - [后续演进路线](docs/ROADMAP.md)
