@@ -341,7 +341,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;.\User;..\Platform\STM32F1\System;.\Hardware;..\Shared\Protocol</IncludePath>
+              <IncludePath>..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;.\User;..\Platform\STM32F1\System;.\Hardware;..\Shared\Protocol;.\App;.\BSP</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -859,6 +859,41 @@
               <FileName>inter_mcu_protocol.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\Shared\Protocol\inter_mcu_protocol.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Application</GroupName>
+          <Files>
+            <File>
+              <FileName>app_scheduler.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\App\app_scheduler.c</FilePath>
+            </File>
+            <File>
+              <FileName>app_scheduler.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\App\app_scheduler.h</FilePath>
+            </File>
+            <File>
+              <FileName>flight_safety.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\App\flight_safety.c</FilePath>
+            </File>
+            <File>
+              <FileName>flight_safety.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\App\flight_safety.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Board Support</GroupName>
+          <Files>
+            <File>
+              <FileName>board_config.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\BSP\board_config.h</FilePath>
             </File>
           </Files>
         </Group>

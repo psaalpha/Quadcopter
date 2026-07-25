@@ -30,3 +30,30 @@ else()
 endif()
 
 add_test(NAME inter_mcu_protocol COMMAND inter_mcu_protocol_test)
+
+add_executable(
+    flight_safety_test
+    test_flight_safety.c
+    ../../Master_MCU/App/flight_safety.c
+)
+
+target_include_directories(
+    flight_safety_test
+    PRIVATE
+    ../../Master_MCU/App
+)
+
+if(MSVC)
+    target_compile_options(flight_safety_test PRIVATE /W4 /WX)
+else()
+    target_compile_options(
+        flight_safety_test
+        PRIVATE
+        -Wall
+        -Wextra
+        -Werror
+        -pedantic
+    )
+endif()
+
+add_test(NAME flight_safety COMMAND flight_safety_test)

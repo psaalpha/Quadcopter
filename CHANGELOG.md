@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-07-25 - Make the master runtime deterministic
+
+### Changed
+- Added a cooperative periodic-task scheduler with four explicit rates:
+  500 Hz IMU/inner loop, 200 Hz RC service, 100 Hz angle loop, and 50 Hz motor
+  output.
+- Reduced TIM1/TIM2/TIM3/TIM4 interrupt handlers to timekeeping, task
+  notification, and interrupt acknowledgement only.
+- Moved IMU filtering, gyro reads, angle reads, PID calculations, Bluetooth
+  telemetry formatting, CRSF parsing, and motor register updates into the main
+  execution context.
+- Coalesced missed periodic releases instead of replaying stale control work;
+  each task records an overrun counter for diagnostics.
+- Centralized task rates, CRSF channel assignments, failsafe timing,
+  low-throttle threshold, and minimum ESC compare value in
+  `Master_MCU/BSP/board_config.h`.
+- Split master application policy into `App` scheduler and flight-safety
+  modules while keeping hardware drivers independent.
+
+### Safety
+- Replaced scattered booleans with explicit `STARTUP_LOCK`, `ACTIVE`,
+  `LINK_LOSS`, and `RECOVERY_LOCK` states.
+- A valid low-throttle frame is required before entering `ACTIVE` after both
+  startup and link recovery.
+- A 300 ms link timeout immediately enters `LINK_LOSS`, resets controller
+  state, and writes the minimum value to all four motor outputs.
+- Existing channel meanings are unchanged. This milestone does not silently
+  assign an ARM switch; explicit pilot arming remains a separately documented
+  follow-up.
+
+### Validation
+- Added host tests for startup lock, link loss, high-throttle recovery lock,
+  low-throttle recovery, and 32-bit tick wraparound.
+- Host result: `2/2` tests passed with warnings treated as errors.
+- ARMCC master result: `0 Error(s), 0 Warning(s)`; Code `28932`, RO-data `892`,
+  RW-data `568`, ZI-data `2664` bytes.
+
 ## 2026-07-25 - Version the inter-MCU sensor protocol
 
 ### Changed
