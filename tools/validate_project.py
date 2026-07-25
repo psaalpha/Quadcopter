@@ -35,6 +35,8 @@ REQUIRED_FILES = (
     "docs/FREERTOS_ARCHITECTURE.md",
     "docs/PARAMETERS.md",
     "docs/LOGGING.md",
+    "tests/host/README.md",
+    "tools/run_quality_gates.ps1",
     "Shared/Services/event_log.c",
     "Shared/Services/event_log.h",
     "Shared/Services/parameter_store.c",
@@ -141,6 +143,21 @@ def validate_markdown_links(document: Path) -> list[str]:
     return errors
 
 
+def validate_host_test_registration() -> list[str]:
+    errors: list[str] = []
+    host_test_root = REPOSITORY_ROOT / "tests" / "host"
+    cmake_file = host_test_root / "CMakeLists.txt"
+    cmake_text = cmake_file.read_text(encoding="utf-8")
+
+    for test_source in sorted(host_test_root.glob("test_*.c")):
+        if test_source.name not in cmake_text:
+            errors.append(
+                f"host test is not registered in CMake: {test_source.name}"
+            )
+
+    return errors
+
+
 def main() -> int:
     errors: list[str] = []
 
@@ -159,6 +176,7 @@ def main() -> int:
     markdown_documents.extend(sorted((REPOSITORY_ROOT / "docs").rglob("*.md")))
     for document in markdown_documents:
         errors.extend(validate_markdown_links(document))
+    errors.extend(validate_host_test_registration())
 
     if errors:
         print("Project validation failed:")
@@ -173,6 +191,7 @@ def main() -> int:
     print("  - all Keil source and include references exist")
     print("  - both firmware targets compile the shared protocol")
     print("  - internal Markdown document links resolve")
+    print("  - every host test source is registered in CMake")
     return 0
 
 

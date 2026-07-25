@@ -7,6 +7,10 @@
 
 当前 `develop` 分支已经完成基础工程化改造：公共平台代码去重、主从协议版本化、主控实时任务调度、安全状态机、电脑端单元测试、项目结构校验和 GitHub 自动检查。
 
+`embedded-engineering-upgrade` 分支在该稳定基线上增加驱动健康契约、GPIO HAL、
+RTOS-ready 任务清单、参数与结构化日志基础设施以及测试替身。FreeRTOS、
+Flash 参数持久化和日志输出后端仍保持未启用，控制算法没有修改。
+
 首次接手项目请从 [工程文档索引](docs/README.md) 开始，里面提供按开发角色和学习顺序组织的阅读路径。
 
 ## 工程结构
@@ -14,7 +18,11 @@
 ```text
 .
 ├── Platform/STM32F1/       # 两颗 MCU 共用的 CMSIS、SPL 和系统服务
-├── Shared/Protocol/        # 与硬件无关的主从通信协议
+├── Shared/
+│   ├── Protocol/           # 与硬件无关的主从通信协议
+│   ├── Drivers/            # 公共驱动契约和通用设备逻辑
+│   ├── HAL/                # 可替换的硬件访问接口
+│   └── Services/           # 参数和结构化日志服务
 ├── Master_MCU/
 │   ├── App/                # 调度与飞行安全策略
 │   ├── BSP/                # 板级配置和控制定时器
@@ -43,6 +51,12 @@ Keil/ARMCC 双目标构建：
 
 ```powershell
 .\tools\build_firmware.ps1
+```
+
+统一运行结构校验、Host 测试和双目标构建：
+
+```powershell
+.\tools\run_quality_gates.ps1
 ```
 
 如果 Keil 不在默认路径：

@@ -4,96 +4,71 @@ project(quadcopter_host_tests C)
 
 enable_testing()
 
-add_executable(
+function(add_quadcopter_host_test target_name test_name)
+    add_executable(${target_name} ${ARGN})
+
+    if(MSVC)
+        target_compile_options(${target_name} PRIVATE /W4 /WX /UNDEBUG)
+    else()
+        target_compile_options(
+            ${target_name}
+            PRIVATE
+            -Wall
+            -Wextra
+            -Werror
+            -pedantic
+            -UNDEBUG
+        )
+    endif()
+
+    add_test(NAME ${test_name} COMMAND ${target_name})
+endfunction()
+
+add_quadcopter_host_test(
     inter_mcu_protocol_test
+    inter_mcu_protocol
     test_inter_mcu_protocol.c
     ../../Shared/Protocol/inter_mcu_protocol.c
 )
-
 target_include_directories(
     inter_mcu_protocol_test
     PRIVATE
     ../../Shared/Protocol
 )
 
-if(MSVC)
-    target_compile_options(inter_mcu_protocol_test PRIVATE /W4 /WX)
-else()
-    target_compile_options(
-        inter_mcu_protocol_test
-        PRIVATE
-        -Wall
-        -Wextra
-        -Werror
-        -pedantic
-    )
-endif()
-
-add_test(NAME inter_mcu_protocol COMMAND inter_mcu_protocol_test)
-
-add_executable(
+add_quadcopter_host_test(
     flight_safety_test
+    flight_safety
     test_flight_safety.c
     ../../Master_MCU/App/flight_safety.c
 )
-
 target_include_directories(
     flight_safety_test
     PRIVATE
     ../../Master_MCU/App
 )
 
-if(MSVC)
-    target_compile_options(flight_safety_test PRIVATE /W4 /WX)
-else()
-    target_compile_options(
-        flight_safety_test
-        PRIVATE
-        -Wall
-        -Wextra
-        -Werror
-        -pedantic
-    )
-endif()
-
-add_test(NAME flight_safety COMMAND flight_safety_test)
-
-add_executable(
+add_quadcopter_host_test(
     driver_status_test
+    driver_status
     test_driver_status.c
     ../../Shared/Drivers/driver_status.c
 )
-
 target_include_directories(
     driver_status_test
     PRIVATE
     ../../Shared/Drivers
 )
 
-if(MSVC)
-    target_compile_options(driver_status_test PRIVATE /W4 /WX)
-else()
-    target_compile_options(
-        driver_status_test
-        PRIVATE
-        -Wall
-        -Wextra
-        -Werror
-        -pedantic
-    )
-endif()
-
-add_test(NAME driver_status COMMAND driver_status_test)
-
-add_executable(
+add_quadcopter_host_test(
     status_led_test
+    status_led
     test_status_led.c
     fakes/fake_hal_gpio.c
     ../../Shared/Drivers/driver_status.c
     ../../Shared/Drivers/status_led.c
     ../../Shared/HAL/hal_gpio.c
 )
-
 target_include_directories(
     status_led_test
     PRIVATE
@@ -102,27 +77,12 @@ target_include_directories(
     ../../Shared/HAL
 )
 
-if(MSVC)
-    target_compile_options(status_led_test PRIVATE /W4 /WX)
-else()
-    target_compile_options(
-        status_led_test
-        PRIVATE
-        -Wall
-        -Wextra
-        -Werror
-        -pedantic
-    )
-endif()
-
-add_test(NAME status_led COMMAND status_led_test)
-
-add_executable(
+add_quadcopter_host_test(
     app_task_model_test
+    app_task_model
     test_app_task_model.c
     ../../Master_MCU/App/app_task_model.c
 )
-
 target_include_directories(
     app_task_model_test
     PRIVATE
@@ -130,71 +90,26 @@ target_include_directories(
     ../../Master_MCU/BSP
 )
 
-if(MSVC)
-    target_compile_options(app_task_model_test PRIVATE /W4 /WX)
-else()
-    target_compile_options(
-        app_task_model_test
-        PRIVATE
-        -Wall
-        -Wextra
-        -Werror
-        -pedantic
-    )
-endif()
-
-add_test(NAME app_task_model COMMAND app_task_model_test)
-
-add_executable(
+add_quadcopter_host_test(
     parameter_store_test
+    parameter_store
     test_parameter_store.c
     ../../Shared/Services/parameter_store.c
 )
-
 target_include_directories(
     parameter_store_test
     PRIVATE
     ../../Shared/Services
 )
 
-if(MSVC)
-    target_compile_options(parameter_store_test PRIVATE /W4 /WX)
-else()
-    target_compile_options(
-        parameter_store_test
-        PRIVATE
-        -Wall
-        -Wextra
-        -Werror
-        -pedantic
-    )
-endif()
-
-add_test(NAME parameter_store COMMAND parameter_store_test)
-
-add_executable(
+add_quadcopter_host_test(
     event_log_test
+    event_log
     test_event_log.c
     ../../Shared/Services/event_log.c
 )
-
 target_include_directories(
     event_log_test
     PRIVATE
     ../../Shared/Services
 )
-
-if(MSVC)
-    target_compile_options(event_log_test PRIVATE /W4 /WX)
-else()
-    target_compile_options(
-        event_log_test
-        PRIVATE
-        -Wall
-        -Wextra
-        -Werror
-        -pedantic
-    )
-endif()
-
-add_test(NAME event_log COMMAND event_log_test)

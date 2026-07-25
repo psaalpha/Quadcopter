@@ -41,6 +41,43 @@ cmake --build build/host
 ctest --test-dir build/host --output-on-failure
 ```
 
+测试替身、故障注入约束和新增测试步骤见
+[`tests/host/README.md`](../tests/host/README.md)。
+
+当前测试矩阵：
+
+| 测试 | 主要范围 |
+|---|---|
+| `inter_mcu_protocol` | 帧格式、端序、CRC 和损坏拒绝 |
+| `flight_safety` | 启动锁、失联、恢复和 tick 回绕 |
+| `driver_status` | 生命周期记录、连续错误和饱和计数 |
+| `status_led` | GPIO HAL、active-low 和 I/O 故障恢复 |
+| `app_task_model` | 周期、优先级、deadline 和栈预算 |
+| `parameter_store` | 类型、范围、schema、CRC 和事务加载 |
+| `event_log` | FIFO、回绕、溢出、锁和 sink backpressure |
+
+所有 Host 测试在 Debug 和 Release 配置中都显式保留 `assert()`；禁止通过
+`NDEBUG` 把断言编译掉。
+
+## 统一质量门禁
+
+Windows 开发环境可一次运行结构校验、Host 测试和双 Keil 构建：
+
+```powershell
+.\tools\run_quality_gates.ps1
+```
+
+未安装 Keil、只运行可移植检查时：
+
+```powershell
+.\tools\run_quality_gates.ps1 -SkipFirmware
+```
+
+脚本在 Windows 检测到 `mingw32-make` 时会自动选择 MinGW，也可以使用
+`-Generator` 显式指定已安装的 CMake 生成器。
+
+该脚本不清理构建目录，也不烧录硬件。
+
 ### 协议测试
 
 覆盖：

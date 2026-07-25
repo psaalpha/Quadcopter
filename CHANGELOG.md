@@ -1,5 +1,50 @@
 # Changelog
 
+## 2026-07-26 - Establish enterprise embedded foundations
+
+### Added
+- Added shared driver result, lifecycle, and health reporting with saturating
+  diagnostic counters.
+- Added a function-table GPIO HAL, STM32F1 SPL adapter, reusable Fake GPIO, and
+  a hardware-independent status LED driver.
+- Added an RTOS-ready task manifest covering periods, deadlines, logical
+  priorities, release coalescing, and initial static stack budgets.
+- Added a static parameter service with typed bounds, dirty/revision tracking,
+  schema-versioned CRC32 images, and transactional loading.
+- Added a static 16-byte structured event log with overflow accounting,
+  optional critical-section hooks, and bounded sink draining.
+- Added HAL, FreeRTOS, parameter, logging, host-test, and staged-upgrade
+  documentation.
+
+### Changed
+- Kept the existing `LED1/2/3` API as compatibility wrappers while moving its
+  device behavior behind the new GPIO HAL.
+- Made the cooperative scheduler's task identifiers share a testable task
+  model; FreeRTOS remains compile-time disabled until an adapter is implemented.
+- Consolidated Host test registration so every target uses warnings as errors
+  and keeps `assert()` enabled in Release builds.
+- Extended project validation to require the new foundations, resolve all
+  internal document links, and reject unregistered `test_*.c` sources.
+- Added a unified Windows quality-gate script and enabled GitHub Host checks for
+  pushes on every branch.
+
+### Scope
+- No PID coefficient, control equation, attitude estimator, motor mapping,
+  motor timing, CRSF layout, or inter-MCU wire format was changed.
+- The parameter service does not yet control PID values or write Flash.
+- The event log has no production sink and does not change Bluetooth telemetry.
+- FreeRTOS source code is not present and the cooperative scheduler remains the
+  only enabled execution model.
+
+### Validation
+- Repository structure, Keil references, documentation links, and Host test
+  registration passed validation.
+- Release Host build passed with warnings as errors and `7/7` tests.
+- Master and Slave ARMCC builds reported `0 Error(s), 0 Warning(s)`.
+- Unused parameter and logging services were removed by the linker; Master
+  linked size remained Code `29608`, RO-data `904`, RW-data `572`, ZI-data
+  `2804` bytes after the LED HAL migration.
+
 ## 2026-07-26 - Complete the engineering documentation baseline
 
 ### Added

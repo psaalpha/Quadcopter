@@ -2,10 +2,15 @@ name: Firmware quality gates
 
 on:
   push:
-    branches:
-      - main
-      - develop
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firmware-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   host-quality:

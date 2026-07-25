@@ -5,10 +5,14 @@
 ```text
 Quadcopter/
 ├── Platform/STM32F1/          公共芯片平台
-├── Shared/Protocol/           主从共享协议
+├── Shared/
+│   ├── Protocol/              主从共享协议
+│   ├── Drivers/               通用驱动契约和设备逻辑
+│   ├── HAL/                   与芯片无关的硬件接口
+│   └── Services/              参数与结构化日志服务
 ├── Master_MCU/                主控固件
-│   ├── App/                   应用调度与安全策略
-│   ├── BSP/                   板级配置和定时器资源
+│   ├── App/                   应用调度、安全策略和任务模型
+│   ├── BSP/                   板级配置、定时器和 HAL 适配
 │   ├── Hardware/              驱动与当前控制算法
 │   └── User/                  main 和中断入口
 ├── Slave_MCU/                 从控固件
@@ -34,13 +38,22 @@ Quadcopter/
 
 ## Shared
 
-`Shared/Protocol` 保存主从固件共同编译的纯 C 协议实现。
+`Shared` 保存与具体板卡无关、可以由电脑端编译的公共模块。
 
 - 不得包含 `stm32f10x.h`；
 - 不得访问寄存器；
 - 不得依赖 Master/Slave 私有头文件；
 - 必须能被电脑端编译器直接构建；
 - 协议字段变化必须更新 `PROTOCOL.md` 和测试。
+
+| 目录 | 当前职责 |
+|---|---|
+| `Protocol` | 带版本、长度和 CRC 的 Master/Slave 线上协议 |
+| `Drivers` | 驱动状态/健康契约和通用 `StatusLed` 设备逻辑 |
+| `HAL` | 当前 GPIO 操作契约；后续扩展 SPI/I2C/UART/时间/NVM |
+| `Services` | 参数描述、持久化镜像和结构化事件日志 |
+
+`Services` 当前只提供基础设施，尚未接管 PID、Flash 或蓝牙遥测。
 
 ## Master MCU
 
@@ -49,6 +62,7 @@ Quadcopter/
 | 模块 | 职责 |
 |---|---|
 | `app_scheduler` | 周期任务通知、消费和 overrun 计数 |
+| `app_task_model` | 周期、deadline、逻辑优先级和 FreeRTOS 栈预算 |
 | `flight_safety` | 启动锁、运行、失联和恢复锁状态转换 |
 
 App 表达系统策略，不应直接配置 GPIO、DMA 或 USART。
@@ -59,6 +73,7 @@ App 表达系统策略，不应直接配置 GPIO、DMA 或 USART。
 |---|---|
 | `board_config.h` | 周期、通道、超时和电机安全常量 |
 | `control_timers` | TIM1/TIM2/TIM3 时基与 NVIC 配置 |
+| `stm32f1_gpio_hal` | 把 STM32F1 SPL GPIO 绑定为公共 HAL |
 
 BSP 是板级资源的唯一解释层。引脚和定时器调整应先检查 `PINOUT.md`。
 
