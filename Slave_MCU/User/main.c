@@ -48,6 +48,7 @@
 #include "QMC5883P.h"
 #include "OpticalFlow.h"
 #include "AT7456E.h"
+#include "inter_mcu_protocol.h"
 
 /* BMP390 SPI 驱动适配函数，实现在 Hardware/BMP390.c。 */
 extern void    SPI1_Init(void);
@@ -76,23 +77,6 @@ extern volatile uint8_t key_flag;   /* exti.c：PA0 下降沿置位，用于归�
 
 #define BUZZER_PORT         GPIOA
 #define BUZZER_PIN          GPIO_Pin_3    /* PA3，有源蜂鸣器，低电平响 */
-
-/* USART2 发送给主飞控的数据包定义。 */
-#define PACKET_HEADER  0xA5
-
-typedef __packed struct {
-    uint8_t  header;           /* 固定帧头 0xA5 */
-    uint8_t  length;           /* 负载长度，不含 header/checksum */
-    float    pressure;         /* 气压，单位 Pa */
-    float    temperature;      /* 温度，单位 °C */
-    float    altitude;         /* 相对高度，单位 cm */
-    float    yaw;              /* 磁力计航向角，0~360° */
-    int32_t  flow_x;           /* 光流 X 原始值 */
-    int32_t  flow_y;           /* 光流 Y 原始值 */
-    uint16_t flow_distance;    /* 光流测距，单位 mm */
-    uint8_t  flow_quality;     /* 光流信号强度，0~100 */
-    uint8_t  checksum;         /* byte0~byte28 异或校验 */
-} SensorPacket_t;
 
 /* 独立看门狗：LSI 40kHz / 64 = 625Hz，重装载 625 约 1s 超时。 */
 #define IWDG_RELOAD_COUNT  625
@@ -126,6 +110,7 @@ static void IWDG_Feed(void)
 
 /* TIM2 50ms 周期标志。变量名保留历史命名，实际不是 100ms。 */
 volatile uint8_t timer_100ms_flag = 0;
+volatile uint32_t system_time_ms = 0;
 static float   battery_voltage = 0.0f;   /* 电池电压，单位 V */
 
 /* 气压高度滤波：滑动均值 + 慢速基线漂移滤波。 */
@@ -333,24 +318,41 @@ static void USART2_Init(void)
     USART_Cmd(USART2, ENABLE);
 }
 
-/* USART2 发送一包固定格式的传感器数据。 */
-static void USART2_SendPacket(SensorPacket_t *pkt)
+static int32_t ScaleFloat(float value,
+                          float scale,
+                          int32_t minimum,
+                          int32_t maximum)
+{
+    float scaled = value * scale;
+
+    if (scaled <= (float)minimum) {
+        return minimum;
+    }
+    if (scaled >= (float)maximum) {
+        return maximum;
+    }
+    if (scaled >= 0.0f) {
+        scaled += 0.5f;
+    } else {
+        scaled -= 0.5f;
+    }
+    return (int32_t)scaled;
+}
+
+/* USART2 发送一包版本化、定长并带 CRC16 的传感器数据。 */
+static void USART2_SendPacket(const InterMcuSensorData *packet)
 {
     uint8_t i;
-    uint8_t *raw  = (uint8_t *)pkt;
-    uint8_t  csum = 0;
-    
-    pkt->header = PACKET_HEADER;
-    pkt->length = sizeof(SensorPacket_t) - 2;
+    uint8_t frame[INTER_MCU_FRAME_SIZE];
 
-    for (i = 0; i < (uint8_t)sizeof(SensorPacket_t) - 1; i++) {
-        csum ^= raw[i];
+    if (!InterMcu_EncodeSensorFrame(
+            packet, frame, (uint16_t)sizeof(frame))) {
+        return;
     }
-    pkt->checksum = csum;
 
-    for (i = 0; i < (uint8_t)sizeof(SensorPacket_t); i++) {
+    for (i = 0; i < (uint8_t)sizeof(frame); i++) {
         while (USART_GetFlagStatus(USART2, USART_FLAG_TXE) == RESET);
-        USART_SendData(USART2, raw[i]);
+        USART_SendData(USART2, frame[i]);
     }
 }
 
@@ -419,6 +421,7 @@ int main(void)
     uint16_t     calib_timer           = 0;       /* 倒计时计数，单位 50ms */
     uint8_t      calib_prev_level        = 1;       /* PA8 上一轮电平 */
     uint8_t      calib_falling_detected  = 0;       /* 是否已捕获下降沿 */
+    uint16_t     packet_sequence         = 0;
 
     while (1)
     {
@@ -498,16 +501,44 @@ int main(void)
                 QMC5883P_UpdateYaw();
             }
 
-            /* 打包并发送给主飞控。 */
-            SensorPacket_t pkt;
-            pkt.pressure      = pressure;
-            pkt.temperature   = temperature;
-            pkt.altitude      = rela_altitude * 100.0f;
-            pkt.yaw           = QMC5883P_Yaw;
-            pkt.flow_x        = OpticalFlow_Data.flow_x;
-            pkt.flow_y        = OpticalFlow_Data.flow_y;
-            pkt.flow_distance = OpticalFlow_Data.distance;
-            pkt.flow_quality  = OpticalFlow_Data.signal_strength;
+            /* 使用明确单位和字节序打包，避免跨编译器的结构体布局差异。 */
+            InterMcuSensorData pkt;
+            pkt.sequence = packet_sequence++;
+            pkt.flags = 0u;
+            if (rslt == BMP3_OK) {
+                pkt.flags |= INTER_MCU_SENSOR_FLAG_BARO_VALID;
+            }
+            if ((mag_ok != 0u) && (calib_state == CALIB_IDLE)) {
+                pkt.flags |= INTER_MCU_SENSOR_FLAG_MAG_VALID;
+            }
+            if (OpticalFlow_Data.data_valid != 0u) {
+                pkt.flags |= INTER_MCU_SENSOR_FLAG_FLOW_VALID;
+            }
+            if (battery_voltage > 0.5f) {
+                pkt.flags |= INTER_MCU_SENSOR_FLAG_BATTERY_VALID;
+            }
+            if ((battery_voltage > 0.5f) &&
+                (battery_voltage < LOW_BATT_THRESHOLD)) {
+                pkt.flags |= INTER_MCU_SENSOR_FLAG_LOW_BATTERY;
+            }
+            if (calib_state == CALIB_COUNTDOWN) {
+                pkt.flags |= INTER_MCU_SENSOR_FLAG_MAG_CALIBRATING;
+            }
+            pkt.timestamp_ms = system_time_ms;
+            pkt.pressure_pa = ScaleFloat(
+                pressure, 1.0f, 0, 200000);
+            pkt.temperature_centi_c = (int16_t)ScaleFloat(
+                temperature, 100.0f, -32768, 32767);
+            pkt.baro_altitude_mm = ScaleFloat(
+                rela_altitude, 1000.0f, -100000000, 100000000);
+            pkt.yaw_centi_deg = (uint16_t)ScaleFloat(
+                QMC5883P_Yaw, 100.0f, 0, 35999);
+            pkt.flow_x = OpticalFlow_Data.flow_x;
+            pkt.flow_y = OpticalFlow_Data.flow_y;
+            pkt.flow_distance_mm = OpticalFlow_Data.distance;
+            pkt.flow_quality = OpticalFlow_Data.signal_strength;
+            pkt.battery_mv = (uint16_t)ScaleFloat(
+                battery_voltage, 1000.0f, 0, 65535);
             USART2_SendPacket(&pkt);
 
             /* OSD 图传数据更新。 */

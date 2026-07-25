@@ -145,11 +145,12 @@ void SysTick_Handler(void)
 
 /**
   * @brief  This function handles TIM2 global interrupt request.
-  *         每 100ms 触发一次，通知 main 读取气压计数据
+  *         每 50ms 触发一次，通知 main 读取气压计数据
   * @param  None
   * @retval None
   */
 extern volatile uint8_t timer_100ms_flag;
+extern volatile uint32_t system_time_ms;
 
 void TIM2_IRQHandler(void)
 {
@@ -159,6 +160,7 @@ void TIM2_IRQHandler(void)
         
         /* 置位定时标志，通知主循环读取传感器。 */
         timer_100ms_flag = 1;
+        system_time_ms += 50u;
     }
 }
 

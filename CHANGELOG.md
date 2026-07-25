@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-07-25 - Version the inter-MCU sensor protocol
+
+### Changed
+- Replaced the compiler-dependent packed structure and raw `float` transfer
+  between the slave and master with a 41-byte versioned protocol frame.
+- Defined explicit little-endian integer fields and physical units for pressure,
+  temperature, barometric altitude, yaw, optical flow, range, signal quality,
+  battery voltage, sequence, timestamp, and sensor status flags.
+- Replaced the single-byte XOR checksum with CRC16-CCITT (`0x1021`, initial
+  value `0xFFFF`).
+- Added receiver resynchronization, frame-format counters, CRC-error counters,
+  and sequence-gap diagnostics.
+- Added a shared, hardware-independent codec under `Shared/Protocol` and made
+  both Keil projects compile the same implementation.
+
+### Compatibility
+- This is an intentional wire-protocol break. Master and slave firmware from
+  this version must be flashed as a matched pair.
+- Application-facing master values retain their previous units: altitude in
+  centimetres, yaw in degrees, flow range in millimetres.
+
+### Validation
+- Added a host-side C test covering the standard CRC reference vector,
+  byte-order checks, signed-value round trips, and rejection of malformed or
+  corrupted frames.
+- Host test result: `1/1` passed with GCC 8.1.0 and warnings treated as errors.
+- ARMCC master result: `0 Error(s), 0 Warning(s)`; Code `28716`, RO-data `892`,
+  RW-data `580`, ZI-data `2628` bytes.
+- ARMCC slave result: `0 Error(s), 0 Warning(s)`; Code `30122`, RO-data `2182`,
+  RW-data `104`, ZI-data `1736` bytes.
+
 ## 2026-07-25 - Share the STM32F1 platform layer
 
 ### Changed

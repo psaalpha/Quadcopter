@@ -341,7 +341,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;.\User;..\Platform\STM32F1\System;.\Hardware</IncludePath>
+              <IncludePath>..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;.\User;..\Platform\STM32F1\System;.\Hardware;..\Shared\Protocol</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -844,6 +844,21 @@
               <FileName>SlaveMCU.h</FileName>
               <FileType>5</FileType>
               <FilePath>.\Hardware\SlaveMCU.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Shared Protocol</GroupName>
+          <Files>
+            <File>
+              <FileName>inter_mcu_protocol.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Protocol\inter_mcu_protocol.c</FilePath>
+            </File>
+            <File>
+              <FileName>inter_mcu_protocol.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Protocol\inter_mcu_protocol.h</FilePath>
             </File>
           </Files>
         </Group>

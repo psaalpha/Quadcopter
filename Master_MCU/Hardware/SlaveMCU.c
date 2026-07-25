@@ -8,20 +8,18 @@
   *          DMA1_Channel3: 环形缓冲区接收
   *          IDLE 中断: 检测帧结束，触发解析
   *
-  *          数据包: 30 字节固定长度，帧头 0xA5，异或校验
+  *          数据包: 版本化定长帧，固定字节序，CRC16-CCITT 校验
   ******************************************************************************
   */
 
 #include "SlaveMCU.h"
+#include "inter_mcu_protocol.h"
 #include <string.h>
 
 /* ============================================
  * 协议常量
  * ============================================ */
 #define SLAVE_BAUDRATE      115200u
-#define SLAVE_PACKET_LEN    30u        /* 固定包长 */
-#define SLAVE_HEADER        0xA5u      /* 帧头 */
-#define SLAVE_PAYLOAD_LEN   28u        /* length 字段期望值 */
 #define SLAVE_DMA_BUF_SIZE  256u       /* DMA 环形缓冲区 */
 
 /* ============================================
@@ -40,7 +38,7 @@ static uint8_t  slave_dma_buf[SLAVE_DMA_BUF_SIZE] __attribute__((aligned(4)));
 static void Slave_GPIO_Config(void);
 static void Slave_USART_Config(void);
 static void Slave_DMA_Config(void);
-static void Slave_ParsePacket(const uint8_t *raw);
+static void Slave_ApplyPacket(const InterMcuSensorData *packet);
 static void Slave_TryExtractFrame(void);
 
 /* ============================================
@@ -141,8 +139,7 @@ static void Slave_DMA_Config(void)
 
 /* ============================================
  * USART3 中断服务函数
- * IDLE 中断表示一帧接收结束，直接提取末尾 30 字节解析。
- * 这样避免 payload 中出现 0xA5 时造成状态机误同步。
+ * IDLE 中断表示一段接收结束，从末尾向前查找完整协议帧。
  * ============================================ */
 void USART3_IRQHandler(void)
 {
@@ -163,77 +160,94 @@ void USART3_IRQHandler(void)
 }
 
 /* ============================================
- * 从 DMA 缓冲区直接提取最新一帧（30 字节）。
+ * 从 DMA 缓冲区查找并解析最新的完整协议帧。
  * ============================================ */
 static void Slave_TryExtractFrame(void)
 {
     uint32_t ndtr     = DMA_GetCurrDataCounter(DMA1_Channel3);
     uint32_t received = SLAVE_DMA_BUF_SIZE - ndtr;
+    uint32_t offset;
+    uint8_t found_candidate = 0u;
 
     /* 至少收到一帧才处理 */
-    if (received < SLAVE_PACKET_LEN)
-        return;
-
-    /* 最新一帧在缓冲区末尾 30 字节 */
-    uint8_t  frame[SLAVE_PACKET_LEN];
-    uint32_t start_ofs = received - SLAVE_PACKET_LEN;
-
-    for (uint32_t i = 0; i < SLAVE_PACKET_LEN; i++)
+    if (received < INTER_MCU_FRAME_SIZE)
     {
-        frame[i] = slave_dma_buf[(start_ofs + i) % SLAVE_DMA_BUF_SIZE];
+        slave.format_errors++;
+        return;
     }
 
-    /* 帧头校验 */
-    if (frame[0] != SLAVE_HEADER)
-        return;
-
-    /* 长度校验 */
-    if (frame[1] != SLAVE_PAYLOAD_LEN)
-        return;
-
-    /* 异或校验：byte 0~28 */
-    uint8_t csum = 0;
-    for (uint8_t i = 0; i < 29; i++)
-        csum ^= frame[i];
-
-    if (csum == frame[29])
+    offset = received - INTER_MCU_FRAME_SIZE;
+    for (;;)
     {
-        Slave_ParsePacket(frame);
+        if ((slave_dma_buf[offset] == INTER_MCU_MAGIC_0) &&
+            (slave_dma_buf[offset + 1u] == INTER_MCU_MAGIC_1))
+        {
+            InterMcuSensorData packet;
+            InterMcuDecodeStatus status;
+
+            found_candidate = 1u;
+            status = InterMcu_DecodeSensorFrame(
+                &slave_dma_buf[offset],
+                INTER_MCU_FRAME_SIZE,
+                &packet);
+
+            if (status == INTER_MCU_DECODE_OK)
+            {
+                Slave_ApplyPacket(&packet);
+                return;
+            }
+            if (status == INTER_MCU_DECODE_CRC)
+            {
+                slave.crc_errors++;
+            }
+            else
+            {
+                slave.format_errors++;
+            }
+        }
+
+        if (offset == 0u)
+        {
+            break;
+        }
+        --offset;
+    }
+
+    if (found_candidate == 0u)
+    {
+        slave.format_errors++;
     }
 }
 
 /* ============================================
- * 解析有效包，提取 5 个传感器字段
- * 包格式（小端序）：
- *   [0]=0xA5 [1]=28 [2-5]=pressure [6-9]=temp
- *   [10-13]=altitude [14-17]=yaw [18-21]=flow_x
- *   [22-25]=flow_y [26-27]=flow_distance [28]=quality [29]=csum
+ * 将已经通过协议校验的数据原子地发布给主循环。
  * ============================================ */
-static void Slave_ParsePacket(const uint8_t *raw)
+static void Slave_ApplyPacket(const InterMcuSensorData *packet)
 {
-    float    altitude;
-    float    yaw;
-    int32_t  flow_x;
-    int32_t  flow_y;
-    uint16_t flow_distance;
-    uint8_t  flow_quality;
+    static uint8_t sequence_initialized = 0u;
+    static uint16_t expected_sequence = 0u;
 
-    /* 小端序读取各字段 */
-    altitude      = *(float *)(&raw[10]);
-    yaw           = *(float *)(&raw[14]);
-    flow_x        = *(int32_t *)(&raw[18]);
-    flow_y        = *(int32_t *)(&raw[22]);
-    flow_distance = *(uint16_t *)(&raw[26]);
-    flow_quality  = raw[28];
+    if ((sequence_initialized != 0u) &&
+        (packet->sequence != expected_sequence))
+    {
+        slave.sequence_gaps++;
+    }
+    sequence_initialized = 1u;
+    expected_sequence = (uint16_t)(packet->sequence + 1u);
 
-    /* 更新全局结构体，主循环通过 updated 标志读取。 */
-    slave.baro_altitude = altitude;
-    slave.mag_yaw       = yaw;
-    slave.flow_x        = flow_x;
-    slave.flow_y        = flow_y;
-    slave.flow_distance = flow_distance;
-    slave.flow_quality  = flow_quality;
-    slave.flow_altitude = (float)flow_distance / 10.0f;
-
+    slave.baro_altitude = (float)packet->baro_altitude_mm / 10.0f;
+    slave.mag_yaw = (float)packet->yaw_centi_deg / 100.0f;
+    slave.flow_x = packet->flow_x;
+    slave.flow_y = packet->flow_y;
+    slave.flow_distance = packet->flow_distance_mm;
+    slave.flow_quality = packet->flow_quality;
+    slave.flow_altitude = (float)packet->flow_distance_mm / 10.0f;
+    slave.status_flags = packet->flags;
+    slave.sequence = packet->sequence;
+    slave.timestamp_ms = packet->timestamp_ms;
+    slave.pressure_pa = packet->pressure_pa;
+    slave.temperature_centi_c = packet->temperature_centi_c;
+    slave.battery_mv = packet->battery_mv;
+    slave.frames_received++;
     slave.updated = 1;
 }
