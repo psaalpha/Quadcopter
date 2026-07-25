@@ -177,3 +177,17 @@ target_include_directories(
     PRIVATE
     ../../Shared/Services
 )
+
+add_quadcopter_host_test(
+    parameter_extensions_test
+    parameter_extensions
+    test_parameter_extensions.c
+    ../../Shared/Services/parameter_store.c
+    ../../Shared/Services/parameter_catalog.c
+    ../../Shared/Services/parameter_persistence.c
+)
+target_include_directories(
+    parameter_extensions_test
+    PRIVATE
+    ../../Shared/Services
+)

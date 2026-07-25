@@ -22,6 +22,21 @@
 
 这样可以先验证数据模型和损坏处理，再单独评审飞控参数迁移。
 
+## 1.1 扩展模块
+
+现有 `ParameterStore_*` 函数签名保持不变。扩展能力位于外侧：
+
+| 模块 | 职责 |
+|---|---|
+| `parameter_catalog.*` | 分类、稳定名称、单位、引入和废弃 schema |
+| `parameter_persistence.*` | 调用编码/解码并协调原子存储后端 |
+
+分类包括 System、Sensor、Control、Communication、Safety 和 Debug。名称建议
+使用稳定点分格式，例如 `control.roll_kp`、`communication.timeout_ms`。
+
+Catalog 必须与 Store 使用相同 schema version，且每个 Descriptor 都必须有
+且只有一个可用 metadata。Catalog 不保存当前值。
+
 ## 2. 参数描述表
 
 每个参数必须定义：
@@ -159,6 +174,21 @@ Slot B: generation + image + commit marker
 - 擦写错误必须进入日志和维护诊断；
 - Flash endurance 需要节流和变更合并；
 - schema 升级必须提供迁移函数或明确恢复默认值。
+
+`ParameterPersistenceBackend` 已预留：
+
+- `read(context, buffer, capacity, read_size)`；
+- `write_atomic(context, buffer, size)`。
+
+`ParameterPersistence_Save()` 会：
+
+1. 记录当前 revision；
+2. 编码到调用方 scratch；
+3. 调用 `write_atomic`；
+4. 仅在 revision 仍一致时清除 dirty。
+
+如果保存过程中又发生参数修改，返回 `STALE_REVISION` 并保持 dirty。
+STM32 Flash adapter 尚未实现，避免在未完成双槽和断电测试前误用单页原地写。
 
 ## 8. PID 参数迁移步骤
 

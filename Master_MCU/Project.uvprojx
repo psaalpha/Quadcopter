@@ -960,6 +960,26 @@
               <FileType>5</FileType>
               <FilePath>..\Shared\Services\flight_data_logger.h</FilePath>
             </File>
+            <File>
+              <FileName>parameter_catalog.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Services\parameter_catalog.c</FilePath>
+            </File>
+            <File>
+              <FileName>parameter_catalog.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Services\parameter_catalog.h</FilePath>
+            </File>
+            <File>
+              <FileName>parameter_persistence.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Services\parameter_persistence.c</FilePath>
+            </File>
+            <File>
+              <FileName>parameter_persistence.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Services\parameter_persistence.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
