@@ -1,11 +1,16 @@
 #ifndef __PID_H
 #define __PID_H
-#include "stm32f10x.h"
+#include <stdint.h>
 void Set_Base_Duty(float value);
 //void Drone_RollPitchYaw_PID_Control(float current_roll, float current_pitch, float current_yaw,float rollRate,float pitchRate,float yawRate);
 void Drone_Outer_Angle_PID_Control(float current_roll, float current_pitch, float current_yaw);
 void Drone_Inner_Rate_PID_Control(float rollRate, float pitchRate, float yawRate);
-void Drone_Altitude_Position_PID_Control(float current_altitude_cm, int32_t flow_x, int32_t flow_y);
+/* 从控每送来一帧有效数据调用一次；dt_s 是本地实测帧间隔（秒）。 */
+void Drone_Altitude_Position_PID_Control(float current_altitude_cm,
+                                         int32_t flow_x, int32_t flow_y,
+                                         float dt_s);
+/* 退出辅助模式或传感器失效时单独清导航环，不扰动姿态内外环。 */
+void Drone_Navigation_PID_Reset(void);
 void Drone_Motors_Stop(void);
 uint16_t Get_Motor_Duty_FrontLeft(void); 
 uint16_t Get_Motor_Duty_FrontRight(void); 

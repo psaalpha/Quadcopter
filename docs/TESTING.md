@@ -65,6 +65,12 @@ ctest --test-dir build/host --output-on-failure
 - 低油门恢复；
 - 32 位 tick 回绕。
 
+### Yaw 与导航 PID 测试
+
+- `yaw_estimator_test`：首帧磁力计对齐、0/360° 环绕方向、无效航向拒绝。
+- `pid_control_test`：Yaw 最短角误差及混控输出、高度/光流修正输出、退出辅助模式后的积分和输出清零。
+- 这些是算法层电脑端测试，不验证传感器装配、串口电气和真实电机转向。
+
 ## ARMCC 固件构建
 
 ```powershell
@@ -92,6 +98,8 @@ ctest --test-dir build/host --output-on-failure
 | 注入错误 CRSF CRC | 不刷新 RC 链路 |
 | 注入错误主从 CRC | CRC 计数增加，数据不更新 |
 | 主循环人为延迟 | scheduler overrun 可观察 |
+| CH6 关闭或光流质量/测距无效 | 高度/光流辅助退出，保留手动目标 |
+| 从控磁力计无新样本 | 不重复融合旧航向 |
 
 ## 何时必须增加测试
 

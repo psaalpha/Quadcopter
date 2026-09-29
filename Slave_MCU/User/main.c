@@ -407,6 +407,7 @@ int main(void)
 
     /* QMC5883P 磁力计初始化。 */
     uint8_t mag_ok = (QMC5883P_Init() == 0);
+    uint8_t mag_sample_new = 0u;   /* 本次 50ms 发布周期是否读到新航向 */
 
     /* 所有外设初始化完成后再启动看门狗。 */
     IWDG_Init();
@@ -497,21 +498,28 @@ int main(void)
             }
 
             /* 非校准状态下更新磁力计航向。 */
+            mag_sample_new = 0u;
             if (calib_state == CALIB_IDLE && mag_ok) {
-                QMC5883P_UpdateYaw();
+                if (QMC5883P_UpdateYaw() != 0u) {
+                    mag_sample_new = 1u;
+                }
             }
 
             /* 使用明确单位和字节序打包，避免跨编译器的结构体布局差异。 */
             InterMcuSensorData pkt;
+            OpticalFlow_Data_t flow_snapshot;
+            OpticalFlow_GetSnapshot(&flow_snapshot);
             pkt.sequence = packet_sequence++;
             pkt.flags = 0u;
             if (rslt == BMP3_OK) {
                 pkt.flags |= INTER_MCU_SENSOR_FLAG_BARO_VALID;
             }
-            if ((mag_ok != 0u) && (calib_state == CALIB_IDLE)) {
+            /* 只在本周期确实读到新样本时置位；主控不能重复融合旧航向。 */
+            if ((mag_ok != 0u) && (calib_state == CALIB_IDLE) &&
+                (mag_sample_new != 0u)) {
                 pkt.flags |= INTER_MCU_SENSOR_FLAG_MAG_VALID;
             }
-            if (OpticalFlow_Data.data_valid != 0u) {
+            if (flow_snapshot.data_valid != 0u) {
                 pkt.flags |= INTER_MCU_SENSOR_FLAG_FLOW_VALID;
             }
             if (battery_voltage > 0.5f) {
@@ -533,16 +541,16 @@ int main(void)
                 rela_altitude, 1000.0f, -100000000, 100000000);
             pkt.yaw_centi_deg = (uint16_t)ScaleFloat(
                 QMC5883P_Yaw, 100.0f, 0, 35999);
-            pkt.flow_x = OpticalFlow_Data.flow_x;
-            pkt.flow_y = OpticalFlow_Data.flow_y;
-            pkt.flow_distance_mm = OpticalFlow_Data.distance;
-            pkt.flow_quality = OpticalFlow_Data.signal_strength;
+            pkt.flow_x = flow_snapshot.flow_x;
+            pkt.flow_y = flow_snapshot.flow_y;
+            pkt.flow_distance_mm = flow_snapshot.distance;
+            pkt.flow_quality = flow_snapshot.signal_strength;
             pkt.battery_mv = (uint16_t)ScaleFloat(
                 battery_voltage, 1000.0f, 0, 65535);
             USART2_SendPacket(&pkt);
 
             /* OSD 图传数据更新。 */
-            OSD_DisplayInt(0, 7, 5, OpticalFlow_Data.distance);
+            OSD_DisplayInt(0, 7, 5, flow_snapshot.distance);
             OSD_DisplayFloat(1, 4, 3, 1, QMC5883P_Yaw);
             OSD_DisplayInt(15, 13, 4, (int)(temperature * 10));
             OSD_DisplayFloat(14, 3, 1, 1, battery_voltage);
@@ -566,8 +574,8 @@ int main(void)
                 OLED_ShowString(4, 1, buf);
             } else {
                 sprintf(buf, "D:%.1fcm F:%ld",
-                        OpticalFlow_Data.distance / 10.0f,
-                        (long)OpticalFlow_Data.flow_x);
+                        flow_snapshot.distance / 10.0f,
+                        (long)flow_snapshot.flow_x);
                 OLED_ShowString(4, 1, buf);
             }
         }

@@ -18,6 +18,8 @@ extern volatile uint8_t OpticalFlow_RxFlag;
 
 void     OpticalFlow_Init(void);
 void     OpticalFlow_TimeoutCheck(void);
+/* 光流由 USART ISR 更新；主循环一次读取所有字段，避免跨帧拼接。 */
+void     OpticalFlow_GetSnapshot(OpticalFlow_Data_t *snapshot);
 uint8_t  OpticalFlow_HasNewData(void);
 uint8_t  IsDataValid(void);
 int32_t  GetFlowX(void);

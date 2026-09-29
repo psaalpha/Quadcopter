@@ -5,7 +5,7 @@
 - `Master_MCU` 负责遥控输入、姿态解算、串级 PID、安全状态和四路电机输出。
 - `Slave_MCU` 负责气压计、光流、磁力计、电池监测、舵机、OLED/OSD，以及向主控汇总传感器数据。
 
-当前 `develop` 分支已经完成基础工程化改造：公共平台代码去重、主从协议版本化、主控实时任务调度、安全状态机、电脑端单元测试、项目结构校验和 GitHub 自动检查。
+`codex/resume-study-spl` 从 `develop` 派生，保留裸机 SPL 架构，并补齐偏航目标输入、从控磁力计航向接入、高度/光流辅助控制链路及相应注释与主机测试。FreeRTOS 仅作为学习规划，Linux 只用于电脑端开发/测试；辅助 PID 默认增益为零，未经过实飞调参。
 
 首次接手项目请从 [工程文档索引](docs/README.md) 开始，里面提供按开发角色和学习顺序组织的阅读路径。
 
@@ -62,6 +62,7 @@ Keil/ARMCC 双目标构建：
 
 ## 文档
 
+- [简历项目复习导读（本分支从这里开始）](docs/RESUME_STUDY_GUIDE.md)
 - [develop 嵌入式工程化学习指南](docs/DEVELOP_ENGINEERING_LEARNING_GUIDE.md)
 - [工程文档索引与学习路径](docs/README.md)
 - [项目结构与模块职责](docs/PROJECT_STRUCTURE.md)

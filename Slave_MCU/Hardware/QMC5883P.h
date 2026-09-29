@@ -55,7 +55,8 @@ extern int16_t qmc_x_max, qmc_x_min, qmc_y_max, qmc_y_min; // 校准极值
 
 // ========== 函数声明 ==========
 uint8_t QMC5883P_Init(void);        // 初始化QMC5883P
-void QMC5883P_UpdateYaw(void);      // 更新航向角
+/* 读到一组新的有效磁场数据返回 1；未就绪/溢出/I2C 失败返回 0。 */
+uint8_t QMC5883P_UpdateYaw(void);
 void QMC5883P_Calibrate_Start(void);// 校准开始（重置极值）
 void QMC5883P_Calibrate_Collect(void);// 校准数据收集（循环调用）
 uint8_t QMC5883P_Calibrate_End(void);  // 校准结束（计算偏移+保存Flash），返回0成功

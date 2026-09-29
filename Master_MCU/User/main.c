@@ -16,6 +16,7 @@
 #include "flight_safety.h"
 #include "board_config.h"
 #include "control_timers.h"
+#include "inter_mcu_protocol.h"
 
 /* 中断和主循环共享的数据 */
 uint8_t  C=0;
@@ -41,7 +42,7 @@ volatile uint32_t system_tick_5ms = 0;   /* 单调时基，允许自然回绕 */
 /* 显式飞行安全状态：启动锁、运行、失联、恢复锁。 */
 static FlightSafetyContext flight_safety;
 
-/* 主控侧 QMC5883P 变量：当前主运行路径中磁力计数据来自从控 */
+/* 主控侧 QMC5883P 旧驱动保留在工程中；运行路径使用从控上报的航向。 */
 uint8_t qmc_init_ok = 0;        /* QMC 初始化状态：0=失败，1=成功 */
 uint8_t qmc_calibrated = 0;     /* QMC 校准状态：0=未校准，1=已校准 */
 uint8_t yaw_update_flag = 0; 
@@ -61,6 +62,18 @@ int16_t rc_pitch = 0;       /* CH1 映射 ±100 */
 uint8_t rc_thr   = 0;       /* CH2 映射 0~100 */
 int16_t rc_yaw   = 0;       /* CH3 映射 ±900 */
 
+/* CH6 辅助模式：只有开关、油门、安全状态和有效新帧均满足才接入导航 PID。
+ * 默认关闭；第一次进入时捕获当前气压高度，退出时清除导航积分。
+ */
+static uint8_t nav_requested = 0u;
+static uint8_t nav_active = 0u;
+static uint32_t last_nav_frame_tick = 0u;
+static uint32_t last_nav_pid_tick = 0u;
+
+/* Yaw 摇杆是角速度命令，积分为航向目标；松杆后保持最后目标航向。 */
+static float yaw_target_deg = 0.0f;
+static uint8_t yaw_target_initialized = 0u;
+
 /* 从控传感器数据副本，由 slave.updated 触发刷新 */
 int32_t  s_flow_x, s_flow_y;       /* 光流 X/Y 原始值 */
 uint16_t s_flow_dist;              /* 光流测距 (mm) */
@@ -77,10 +90,61 @@ static int16_t Clamp_Int16(int32_t value, int16_t min_value, int16_t max_value)
 	return (int16_t)value;
 }
 
+static float Clamp_Float(float value, float min_value, float max_value)
+{
+	if(value < min_value) return min_value;
+	if(value > max_value) return max_value;
+	return value;
+}
+
+static float Wrap_Yaw360(float angle)
+{
+	while(angle >= 360.0f) angle -= 360.0f;
+	while(angle < 0.0f) angle += 360.0f;
+	return angle;
+}
+
+static void FlightControl_StopNavigation(void)
+{
+	nav_active = 0u;
+	last_nav_frame_tick = 0u;
+	last_nav_pid_tick = 0u;
+	Drone_Navigation_PID_Reset();
+}
+
+/* 将手动杆量和导航修正合成一次目标，再交给原有姿态/PWM 链路。
+ * 光流轴与机体 Roll/Pitch 的符号必须通过无桨台架核对。
+ */
+static void FlightControl_ApplyTargets(void)
+{
+	float duty;
+	float roll_target;
+	float pitch_target;
+
+	if(!FlightSafety_MotorsAllowed(&flight_safety)) return;
+
+	duty = (float)rc_thr;
+	roll_target = (float)rc_roll / 10.0f;
+	pitch_target = (float)rc_pitch / 10.0f;
+	if(nav_active)
+	{
+		duty += Altitude_pid_Get();
+		roll_target += Position_roll_aim_Get();
+		pitch_target += Position_pitch_aim_Get();
+	}
+
+	Set_Base_Duty(Clamp_Float(duty, 0.0f, 100.0f));
+	Roll_aim_Get(Clamp_Float(roll_target, -30.0f, 30.0f));
+	Pitch_aim_Get(Clamp_Float(pitch_target, -30.0f, 30.0f));
+}
+
 /* 软件状态和硬件PWM同时归零，避免旧混控结果在下一周期重新输出。 */
 static void FlightControl_HoldSafe(void)
 {
 	Contrl = 0;
+	nav_requested = 0u;
+	yaw_target_initialized = 0u;
+	FlightControl_StopNavigation();
 	Set_Base_Duty(0.0f);
 	Roll_aim_Get(0.0f);
 	Pitch_aim_Get(0.0f);
@@ -161,6 +225,22 @@ static void FlightControl_RunAngleTask(void)
 	float yaw_value;
 
 	Get_Angle(&roll_value, &pitch_value, &yaw_value);
+	if(FlightSafety_MotorsAllowed(&flight_safety))
+	{
+		if(yaw_target_initialized == 0u)
+		{
+			yaw_target_deg = yaw_value;
+			yaw_target_initialized = 1u;
+		}
+		/* rc_yaw 为 ±900，对应 ±90°/s；本任务每 10ms 积分一次。 */
+		if((rc_yaw > BOARD_RC_YAW_DEADBAND) ||
+		   (rc_yaw < -BOARD_RC_YAW_DEADBAND))
+		{
+			yaw_target_deg = Wrap_Yaw360(
+				yaw_target_deg + (float)rc_yaw * 0.001f);
+		}
+		Yaw_aim_Get(yaw_target_deg);
+	}
 
 	roll = roll_value;
 	pitch = pitch_value;
@@ -262,6 +342,8 @@ static void FlightControl_HandleRcFrame(void)
 		(rcChannels[BOARD_RC_CHANNEL_SERVO] > 1500) ? 1u : 0u;
 	MAG_intf =
 		(rcChannels[BOARD_RC_CHANNEL_MAG] > 1500) ? 1u : 0u;
+	nav_requested =
+		(rcChannels[BOARD_RC_CHANNEL_NAV_MODE] > 1500) ? 1u : 0u;
 
 	FlightSafety_OnValidRcFrame(
 		&flight_safety,
@@ -272,9 +354,12 @@ static void FlightControl_HandleRcFrame(void)
 	if(FlightSafety_MotorsAllowed(&flight_safety))
 	{
 		Contrl = rc_thr;
-		Set_Base_Duty(Contrl);
-		Pitch_aim_Get(rc_pitch / 10.0f);
-		Roll_aim_Get(rc_roll / 10.0f);
+		if((nav_requested == 0u) ||
+		   (rc_thr < BOARD_NAV_MIN_THROTTLE_PERCENT))
+		{
+			FlightControl_StopNavigation();
+		}
+		FlightControl_ApplyTargets();
 	}
 	else
 	{
@@ -301,6 +386,18 @@ static void FlightControl_CheckFailsafe(void)
 		servo_status = 0u;
 		MAG_intf = 0u;
 		FlightControl_HoldSafe();
+	}
+}
+
+static void FlightControl_CheckNavigationTimeout(void)
+{
+	/* 主从链路断开后，旧 PID 输出最多保留 200ms，然后回到手动目标。 */
+	if(nav_active &&
+	   (uint32_t)(system_tick_5ms - last_nav_frame_tick) >=
+		BOARD_NAV_SENSOR_TIMEOUT_TICKS)
+	{
+		FlightControl_StopNavigation();
+		FlightControl_ApplyTargets();
 	}
 }
 
@@ -333,6 +430,11 @@ static void FlightControl_RefreshSlaveData(void)
 	float flow_alt_snapshot;
 	float baro_alt_snapshot;
 	float mag_yaw_snapshot;
+	uint8_t flow_quality_snapshot;
+	uint16_t status_flags_snapshot;
+	uint32_t now_tick;
+	uint32_t elapsed_ticks;
+	uint8_t sensors_valid;
 
 	if(!slave.updated)
 	{
@@ -347,6 +449,8 @@ static void FlightControl_RefreshSlaveData(void)
 	flow_alt_snapshot = slave.flow_altitude;
 	baro_alt_snapshot = slave.baro_altitude;
 	mag_yaw_snapshot = slave.mag_yaw;
+	flow_quality_snapshot = slave.flow_quality;
+	status_flags_snapshot = slave.status_flags;
 	__enable_irq();
 
 	s_flow_x = flow_x_snapshot;
@@ -356,8 +460,72 @@ static void FlightControl_RefreshSlaveData(void)
 	s_baro_alt = baro_alt_snapshot;
 	s_mag_yaw = mag_yaw_snapshot;
 
-	Drone_Altitude_Position_PID_Control(
-		s_flow_alt, s_flow_x, s_flow_y);
+	/* 只有从控标记有效且不在校准时，才用新磁力计帧修正 Yaw。 */
+	if((status_flags_snapshot & INTER_MCU_SENSOR_FLAG_MAG_VALID) &&
+	   !(status_flags_snapshot & INTER_MCU_SENSOR_FLAG_MAG_CALIBRATING))
+	{
+		if(Yaw_ApplyMagHeading(mag_yaw_snapshot) &&
+		   FlightSafety_MotorsAllowed(&flight_safety))
+		{
+			float current_roll;
+			float current_pitch;
+			float current_yaw;
+			/* 首帧绝对航向可能与陀螺仪积分零点不同；同步目标防止突跳。 */
+			Get_Angle(&current_roll, &current_pitch, &current_yaw);
+			yaw_target_deg = current_yaw;
+			yaw_target_initialized = 1u;
+			Yaw_aim_Get(yaw_target_deg);
+		}
+	}
+
+	/* 光流提供相对运动原始量，气压计提供相对高度；两者均有效才进入
+	 * CH6 辅助模式。有效位来自从控，测距和信号质量再加一道门槛。
+	 */
+	sensors_valid =
+		((status_flags_snapshot & INTER_MCU_SENSOR_FLAG_BARO_VALID) != 0u) &&
+		((status_flags_snapshot & INTER_MCU_SENSOR_FLAG_FLOW_VALID) != 0u) &&
+		(flow_quality_snapshot >= BOARD_NAV_FLOW_QUALITY_MIN) &&
+		(flow_dist_snapshot >= BOARD_NAV_DISTANCE_MIN_MM) &&
+		(flow_dist_snapshot <= BOARD_NAV_DISTANCE_MAX_MM);
+	if(!FlightSafety_MotorsAllowed(&flight_safety) ||
+	   !nav_requested ||
+	   (rc_thr < BOARD_NAV_MIN_THROTTLE_PERCENT) ||
+	   !sensors_valid)
+	{
+		FlightControl_StopNavigation();
+		FlightControl_ApplyTargets();
+		return;
+	}
+
+	now_tick = system_tick_5ms;
+	if(nav_active == 0u)
+	{
+		/* 接入瞬间捕获当前高度和光流积分量，不让旧设定值造成阶跃。
+		 * 光流原始积分量不是米制位置，比例/方向仍需实机标定。
+		 */
+		Altitude_aim_Get(baro_alt_snapshot);
+		Position_aim_Get(flow_x_snapshot, flow_y_snapshot);
+		Drone_Navigation_PID_Reset();
+		nav_active = 1u;
+		last_nav_pid_tick = now_tick;
+	}
+	else
+	{
+		elapsed_ticks = (uint32_t)(now_tick - last_nav_pid_tick);
+		if((elapsed_ticks == 0u) ||
+		   (elapsed_ticks >= BOARD_NAV_SENSOR_TIMEOUT_TICKS))
+		{
+			FlightControl_StopNavigation();
+			FlightControl_ApplyTargets();
+			return;
+		}
+		Drone_Altitude_Position_PID_Control(
+			baro_alt_snapshot, flow_x_snapshot, flow_y_snapshot,
+			(float)elapsed_ticks * 0.005f);
+		last_nav_pid_tick = now_tick;
+	}
+	last_nav_frame_tick = now_tick;
+	FlightControl_ApplyTargets();
 }
 
 static void FlightControl_UpdatePidTuning(void)
@@ -404,6 +572,8 @@ int main(void)
 			FlightControl_ServiceRc();
 		}
 		FlightControl_CheckFailsafe();
+		FlightControl_RefreshSlaveData();
+		FlightControl_CheckNavigationTimeout();
 
 		if(AppScheduler_Take(APP_TASK_IMU_UPDATE))
 		{
@@ -420,7 +590,6 @@ int main(void)
 			FlightControl_RunMotorTask();
 		}
 		FlightControl_UpdateIndicators();
-		FlightControl_RefreshSlaveData();
 		FlightControl_UpdatePidTuning();
 	}
 }

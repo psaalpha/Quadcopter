@@ -231,24 +231,24 @@ err:
 }
 
 /* ==================== 核心：读取 XYZ 并计算航向角 ==================== */
-static void QMC_ReadXYZ(void)
+static uint8_t QMC_ReadXYZ(void)
 {
     uint8_t buf[6], status;
 
     /* 只查一次 DRDY（传感器 10Hz，轮询 20Hz，未就绪直接返回用上次数据） */
     status = QMC_ReadReg(QMC5883P_REG_STATUS);
-    if (!(status & QMC5883P_STAT_DRDY)) return;
-    if (status & QMC5883P_STAT_OVFL)    return;
+    if (!(status & QMC5883P_STAT_DRDY)) return 0u;
+    if (status & QMC5883P_STAT_OVFL)    return 0u;
 
     /* 连续读 6 字节 */
-    if (QMC_ReadMulti(QMC5883P_REG_X_LSB, buf, 6)) return;
+    if (QMC_ReadMulti(QMC5883P_REG_X_LSB, buf, 6)) return 0u;
 
     /* 组合为有符号 16 位 */
     int16_t x = (int16_t)((buf[1] << 8) | buf[0]);
     int16_t y = (int16_t)((buf[3] << 8) | buf[2]);
     int16_t z = (int16_t)((buf[5] << 8) | buf[4]);
 
-    if (x == 0 && y == 0) return;           // 过滤无效数据
+    if (x == 0 && y == 0) return 0u;        // 过滤无效数据
 
     /* 应用硬铁校准偏移 */
     qmc_x_raw = x - qmc_x_offset;
@@ -259,6 +259,7 @@ static void QMC_ReadXYZ(void)
     QMC5883P_Yaw = atan2f((float)qmc_y_raw, (float)qmc_x_raw) * (180.0f / M_PI);
     if (QMC5883P_Yaw < 0.0f) QMC5883P_Yaw += 360.0f;
     QMC5883P_Yaw_Last = QMC5883P_Yaw;
+    return 1u;
 }
 
 /* ==================== 对外接口 ==================== */
@@ -291,9 +292,9 @@ uint8_t QMC5883P_Init(void)
     return 0;   // 成功
 }
 
-void QMC5883P_UpdateYaw(void)
+uint8_t QMC5883P_UpdateYaw(void)
 {
-    QMC_ReadXYZ();
+    return QMC_ReadXYZ();
 }
 
 void QMC5883P_Calibrate_Start(void)

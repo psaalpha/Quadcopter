@@ -1,6 +1,4 @@
-#include "stm32f10x.h"
-#include <math.h>
-#include "hubu.h"
+#include "Pid.h"
 
 /* 四轴电机输出占空比，范围 0~100% */
 static float Motor_Duty_FrontLeft  = 0.0f;
@@ -56,8 +54,8 @@ static float Yaw_Inner_I_Limit = 3.0f;
 /* D 项低通滤波系数：0.0=滤波最强但延迟最大，1.0=不滤波。 */
 #define DTERM_LPF_ALPHA 0.3f
 
-/* Altitude and optical-flow position PID run from slave sensor updates. */
-#define NAV_PID_SAMPLE_TIME      0.02f
+/* 高度/光流环按从控新帧运行，实际间隔由调用者传入，不能假定总是 20ms。 */
+#define NAV_PID_MAX_DT_S         0.15f
 #define ALTITUDE_I_LIMIT        10.0f
 #define ALTITUDE_OUT_LIMIT      20.0f
 #define POSITION_I_LIMIT         5.0f
@@ -117,6 +115,7 @@ static float last_position_x_err = 0.0f;
 static float last_position_y_err = 0.0f;
 static float position_roll_aim = 0.0f;
 static float position_pitch_aim = 0.0f;
+static uint8_t nav_derivative_ready = 0u;
 
 static float Limit_Float(float value, float min, float max)
 {
@@ -175,42 +174,69 @@ float Altitude_pid_Get(void) { return altitude_pid_out; }
 float Position_roll_aim_Get(void) { return position_roll_aim; }
 float Position_pitch_aim_Get(void) { return position_pitch_aim; }
 
-void Drone_Altitude_Position_PID_Control(float current_altitude_cm, int32_t flow_x, int32_t flow_y)
+void Drone_Navigation_PID_Reset(void)
 {
+    altitude_integral = 0.0f;
+    position_x_integral = 0.0f;
+    position_y_integral = 0.0f;
+    last_altitude_err = 0.0f;
+    last_position_x_err = 0.0f;
+    last_position_y_err = 0.0f;
+    altitude_pid_out = 0.0f;
+    position_roll_aim = 0.0f;
+    position_pitch_aim = 0.0f;
+    nav_derivative_ready = 0u;
+}
+
+/* 高度输出单位为油门百分比；光流 X/Y 输出单位为姿态目标角（度）。
+ * flow_x/y 仍是传感器原始量，未做相机尺度标定，不能当作米制位置。
+ */
+void Drone_Altitude_Position_PID_Control(float current_altitude_cm,
+                                         int32_t flow_x, int32_t flow_y,
+                                         float dt_s)
+{
+    float altitude_d;
+    float position_x_d;
+    float position_y_d;
+
+    /* 数据太久未更新时不沿用旧积分/微分，避免重新收到帧时突跳。 */
+    if((dt_s <= 0.0f) || (dt_s > NAV_PID_MAX_DT_S) ||
+       (BASE_DUTY <= 1.0f))
+    {
+        Drone_Navigation_PID_Reset();
+        return;
+    }
+
     float altitude_err = target_altitude_cm - current_altitude_cm;
-    altitude_integral += Altitude_Ki * altitude_err * NAV_PID_SAMPLE_TIME;
+    altitude_integral += Altitude_Ki * altitude_err * dt_s;
     altitude_integral = Limit_Float(altitude_integral, -ALTITUDE_I_LIMIT, ALTITUDE_I_LIMIT);
 
-    float altitude_d = Altitude_Kd * (altitude_err - last_altitude_err) / NAV_PID_SAMPLE_TIME;
+    altitude_d = nav_derivative_ready ?
+        Altitude_Kd * (altitude_err - last_altitude_err) / dt_s : 0.0f;
     last_altitude_err = altitude_err;
     altitude_pid_out = Altitude_Kp * altitude_err + altitude_integral + altitude_d;
     altitude_pid_out = Limit_Float(altitude_pid_out, -ALTITUDE_OUT_LIMIT, ALTITUDE_OUT_LIMIT);
 
-    float position_x_err = (float)(target_flow_x - flow_x);
-    position_x_integral += Position_X_Ki * position_x_err * NAV_PID_SAMPLE_TIME;
+    /* 先转 float 再相减，避免两个 int32 原始积分量相减时发生有符号溢出。 */
+    float position_x_err = (float)target_flow_x - (float)flow_x;
+    position_x_integral += Position_X_Ki * position_x_err * dt_s;
     position_x_integral = Limit_Float(position_x_integral, -POSITION_I_LIMIT, POSITION_I_LIMIT);
-    float position_x_d = Position_X_Kd * (position_x_err - last_position_x_err) / NAV_PID_SAMPLE_TIME;
+    position_x_d = nav_derivative_ready ?
+        Position_X_Kd * (position_x_err - last_position_x_err) / dt_s : 0.0f;
     last_position_x_err = position_x_err;
     position_roll_aim = Position_X_Kp * position_x_err + position_x_integral + position_x_d;
     position_roll_aim = Limit_Float(position_roll_aim, -POSITION_ANGLE_LIMIT, POSITION_ANGLE_LIMIT);
 
-    float position_y_err = (float)(target_flow_y - flow_y);
-    position_y_integral += Position_Y_Ki * position_y_err * NAV_PID_SAMPLE_TIME;
+    float position_y_err = (float)target_flow_y - (float)flow_y;
+    position_y_integral += Position_Y_Ki * position_y_err * dt_s;
     position_y_integral = Limit_Float(position_y_integral, -POSITION_I_LIMIT, POSITION_I_LIMIT);
-    float position_y_d = Position_Y_Kd * (position_y_err - last_position_y_err) / NAV_PID_SAMPLE_TIME;
+    position_y_d = nav_derivative_ready ?
+        Position_Y_Kd * (position_y_err - last_position_y_err) / dt_s : 0.0f;
     last_position_y_err = position_y_err;
     position_pitch_aim = Position_Y_Kp * position_y_err + position_y_integral + position_y_d;
     position_pitch_aim = Limit_Float(position_pitch_aim, -POSITION_ANGLE_LIMIT, POSITION_ANGLE_LIMIT);
 
-    if(BASE_DUTY <= 1)
-    {
-        altitude_integral = 0.0f;
-        position_x_integral = 0.0f;
-        position_y_integral = 0.0f;
-        altitude_pid_out = 0.0f;
-        position_roll_aim = 0.0f;
-        position_pitch_aim = 0.0f;
-    }
+    nav_derivative_ready = 1u;
 }
 
 
@@ -371,15 +397,7 @@ void Drone_PID_Reset(void)
     roll_d_filtered     = 0.0f;
     pitch_d_filtered    = 0.0f;
     yaw_d_filtered      = 0.0f;
-    altitude_integral   = 0.0f;
-    position_x_integral = 0.0f;
-    position_y_integral = 0.0f;
-    last_altitude_err   = 0.0f;
-    last_position_x_err = 0.0f;
-    last_position_y_err = 0.0f;
-    altitude_pid_out    = 0.0f;
-    position_roll_aim   = 0.0f;
-    position_pitch_aim  = 0.0f;
+    Drone_Navigation_PID_Reset();
     roll_pid_out        = 0.0f;
     pitch_pid_out       = 0.0f;
     yaw_pid_out         = 0.0f;

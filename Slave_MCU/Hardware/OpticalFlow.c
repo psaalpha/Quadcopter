@@ -12,12 +12,16 @@ static uint8_t  rx_buffer[20];
 static uint8_t  rx_index = 0;
 static uint8_t  total_len = 0;
 static volatile uint16_t rx_timeout = 0;
+/* 从控每 50ms 检查一次；超过 200ms 没有新光流/测距就撤销有效性。 */
+static volatile uint8_t flow_age_50ms = 4u;
+static volatile uint8_t distance_age_50ms = 4u;
 
 /* 光流模块协议常量，依据实际串口数据格式整理。 */
 #define FRAME_HEADER       0x24
 #define MSG_TYPE_DISTANCE  0x01   /* 14 字节测距包 */
 #define MSG_TYPE_FLOW      0x02   /* 18 字节光流包 */
 #define DATA_VALID_FLAG    0xF5
+#define DATA_STALE_TICKS   4u
 
 /* 初始化 USART1：PA9-TX，PA10-RX，115200，用于接收光流模块数据。 */
 void OpticalFlow_Init(void)
@@ -59,6 +63,8 @@ void OpticalFlow_Init(void)
     OpticalFlow_RxFlag = 0;
     rx_index  = 0;
     rx_timeout = 0;
+    flow_age_50ms = DATA_STALE_TICKS;
+    distance_age_50ms = DATA_STALE_TICKS;
 }
 
 /* 解析光流模块数据包。
@@ -99,6 +105,7 @@ static void ParsePacket(const uint8_t *buf, uint8_t len)
                 ((uint32_t)buf[13])
             );
             OpticalFlow_Data.data_valid = 1;
+            flow_age_50ms = 0u;
         } else {
             OpticalFlow_Data.flow_x = 0;
             OpticalFlow_Data.flow_y = 0;
@@ -111,6 +118,7 @@ static void ParsePacket(const uint8_t *buf, uint8_t len)
         OpticalFlow_Data.signal_strength  = buf[8];
         OpticalFlow_Data.distance         = (uint16_t)((buf[10] << 8) | buf[9]);
         OpticalFlow_Data.firmware_version = buf[11];
+        distance_age_50ms = 0u;
         OpticalFlow_RxFlag = 1;
     }
 }
@@ -162,16 +170,40 @@ void USART1_IRQHandler(void)
     }
 }
 
-/* 半帧超时检测，由主循环周期调用。 */
+/* 每 50ms 调用一次：丢弃未接完的半帧，也让旧测量失效。
+ * data_valid 只表示光流包带有效标记且未超时；协议末字节的具体校验
+ * 尚待传感器手册确认，不能把它等同于完整包校验。
+ */
 void OpticalFlow_TimeoutCheck(void)
 {
+    __disable_irq();
     if (rx_index > 0) {
         rx_timeout++;
-        if (rx_timeout > 50) {
+        if (rx_timeout >= DATA_STALE_TICKS) {
             rx_index   = 0;
             rx_timeout = 0;
         }
     }
+    if (flow_age_50ms < DATA_STALE_TICKS) flow_age_50ms++;
+    if (distance_age_50ms < DATA_STALE_TICKS) distance_age_50ms++;
+    if (flow_age_50ms >= DATA_STALE_TICKS) {
+        OpticalFlow_Data.data_valid = 0u;
+        OpticalFlow_Data.flow_x = 0;
+        OpticalFlow_Data.flow_y = 0;
+    }
+    if (distance_age_50ms >= DATA_STALE_TICKS) {
+        OpticalFlow_Data.distance = 0u;
+        OpticalFlow_Data.signal_strength = 0u;
+    }
+    __enable_irq();
+}
+
+void OpticalFlow_GetSnapshot(OpticalFlow_Data_t *snapshot)
+{
+    if (snapshot == 0) return;
+    __disable_irq();
+    *snapshot = OpticalFlow_Data;
+    __enable_irq();
 }
 
 /* 查询是否收到新数据，读取后自动清标志。 */
