@@ -20,12 +20,12 @@
 | TIM1 | 5 ms RC 服务时基 | BSP |
 | TIM2 | 2 ms IMU/内环时基 | BSP |
 | TIM3 | 10 ms角度外环时基 | BSP |
-| TIM4 | 20 ms 四路 ESC PWM | Motor PWM |
+| TIM4 | 50Hz 四路 ESC PWM；500Hz内环写CCR预装载，20ms中断发布遥测任务 | Motor PWM |
 | DMA1_CH3 | USART3 RX | SlaveMCU |
 | DMA1_CH4/CH5 | USART1 TX/RX | BlueSerial |
 | DMA1_CH6 | USART2 RX | CRSF |
 
-`NRF24L01`、主控 OLED 和其他遗留驱动仍保留在工程中，但当前 `main` 没有初始化。它们与 PA0/PA5/PA6 或 PB12/PB13 等资源存在潜在复用冲突，启用前必须先完成资源审查。
+主控未启用的 NRF24L01、本地 QMC5883P、OLED、PWM2 和重复 DMA_Serial 驱动已移除；从控对应驱动不变。
 
 ## Slave MCU
 

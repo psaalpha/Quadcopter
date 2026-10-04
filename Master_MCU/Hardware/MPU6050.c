@@ -67,7 +67,8 @@ void MPU6050_ReadRegs(uint8_t RegAddress, uint8_t *Data, uint8_t Len)
 	MyI2C_Stop();
 }
 
-/* 初始化 MPU6050：1kHz 采样率、陀螺仪 ±2000dps、加速度计 ±16g。 */
+/* 初始化 MPU6050：陀螺仪输出 8kHz、加速度计更新 1kHz；主循环读取 500Hz。
+ * 量程：陀螺仪 ±2000dps、加速度计 ±16g。 */
 void MPU6050_Init(void)
 {
 	MyI2C_Init();

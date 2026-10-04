@@ -1,4 +1,5 @@
 #include "stm32f10x.h"
+#include "board_config.h"
 
 /* 初始化 TIM4 四路 PWM，用于无刷电调 ESC。
  * 通道：CH1-PB6、CH2-PB7、CH3-PB8、CH4-PB9。
@@ -46,8 +47,41 @@ void PWM4_Init(void)
 	TIM_OC2Init(TIM4, &TIM_OCInitStructure);
 	TIM_OC3Init(TIM4, &TIM_OCInitStructure);
 	TIM_OC4Init(TIM4, &TIM_OCInitStructure);
+	/* 500Hz software updates take effect at the next 50Hz PWM boundary. */
+	TIM_OC1PreloadConfig(TIM4, TIM_OCPreload_Enable);
+	TIM_OC2PreloadConfig(TIM4, TIM_OCPreload_Enable);
+	TIM_OC3PreloadConfig(TIM4, TIM_OCPreload_Enable);
+	TIM_OC4PreloadConfig(TIM4, TIM_OCPreload_Enable);
 	
 	TIM_Cmd(TIM4, ENABLE);
+}
+
+/* Preserve the immediate minimum-output path used by flight safety.
+ * Do not generate an update event: repeated locked RC frames must not
+ * restart the PWM period. This retains the existing minimum pulse policy.
+ */
+void PWM4_SetMinimumOutput(void)
+{
+	TIM_UpdateDisableConfig(TIM4, ENABLE);
+	TIM_OC1PreloadConfig(TIM4, TIM_OCPreload_Disable);
+	TIM_OC2PreloadConfig(TIM4, TIM_OCPreload_Disable);
+	TIM_OC3PreloadConfig(TIM4, TIM_OCPreload_Disable);
+	TIM_OC4PreloadConfig(TIM4, TIM_OCPreload_Disable);
+	TIM_SetCompare1(TIM4, BOARD_MOTOR_PWM_MIN_COMPARE);
+	TIM_SetCompare2(TIM4, BOARD_MOTOR_PWM_MIN_COMPARE);
+	TIM_SetCompare3(TIM4, BOARD_MOTOR_PWM_MIN_COMPARE);
+	TIM_SetCompare4(TIM4, BOARD_MOTOR_PWM_MIN_COMPARE);
+	TIM_OC1PreloadConfig(TIM4, TIM_OCPreload_Enable);
+	TIM_OC2PreloadConfig(TIM4, TIM_OCPreload_Enable);
+	TIM_OC3PreloadConfig(TIM4, TIM_OCPreload_Enable);
+	TIM_OC4PreloadConfig(TIM4, TIM_OCPreload_Enable);
+	/* Also overwrite the pending preload values so old flight commands
+	 * cannot be latched by a later update event. */
+	TIM_SetCompare1(TIM4, BOARD_MOTOR_PWM_MIN_COMPARE);
+	TIM_SetCompare2(TIM4, BOARD_MOTOR_PWM_MIN_COMPARE);
+	TIM_SetCompare3(TIM4, BOARD_MOTOR_PWM_MIN_COMPARE);
+	TIM_SetCompare4(TIM4, BOARD_MOTOR_PWM_MIN_COMPARE);
+	TIM_UpdateDisableConfig(TIM4, DISABLE);
 }
 
 /* 设置 TIM4_CH1 的 ESC 脉宽，Compare 范围限制为 500~1000。 */

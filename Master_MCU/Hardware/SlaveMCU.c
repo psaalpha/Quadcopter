@@ -6,13 +6,14 @@
   *          USART3 默认引脚: PB10(TX) / PB11(RX)
   *          波特率: 115200, 8N1
   *          DMA1_Channel3: 环形缓冲区接收
-  *          IDLE 中断: 检测帧结束，触发解析
+  *          IDLE 中断: 仅通知主循环，协议解析在 SlaveMCU_Process
   *
   *          数据包: 版本化定长帧，固定字节序，CRC16-CCITT 校验
   ******************************************************************************
   */
 
 #include "SlaveMCU.h"
+#include "dma_rx.h"
 #include "inter_mcu_protocol.h"
 #include <string.h>
 
@@ -30,7 +31,13 @@ SlaveSensor_t slave;
 /* ============================================
  * DMA 环形缓冲区
  * ============================================ */
-static uint8_t  slave_dma_buf[SLAVE_DMA_BUF_SIZE] __attribute__((aligned(4)));
+static uint8_t slave_dma_buf[SLAVE_DMA_BUF_SIZE] __attribute__((aligned(4)));
+static DmaRx slave_rx;
+static uint8_t slave_frame[INTER_MCU_FRAME_SIZE];
+static uint16_t slave_frame_length;
+static uint8_t sequence_initialized;
+static uint16_t expected_sequence;
+#define SLAVE_SERVICE_BYTES 64u
 
 /* ============================================
  * 静态函数声明
@@ -39,7 +46,7 @@ static void Slave_GPIO_Config(void);
 static void Slave_USART_Config(void);
 static void Slave_DMA_Config(void);
 static void Slave_ApplyPacket(const InterMcuSensorData *packet);
-static void Slave_TryExtractFrame(void);
+static void Slave_FeedByte(uint8_t byte);
 
 /* ============================================
  * 初始化从控数据接收链路。
@@ -47,6 +54,9 @@ static void Slave_TryExtractFrame(void);
 void SlaveMCU_Init(void)
 {
     memset(&slave, 0, sizeof(slave));
+    slave_frame_length = 0u;
+    sequence_initialized = 0u;
+    expected_sequence = 0u;
 
     Slave_GPIO_Config();
     Slave_USART_Config();
@@ -107,6 +117,10 @@ static void Slave_USART_Config(void)
     NVIC_InitStructure.NVIC_IRQChannelSubPriority        = 1;
     NVIC_Init(&NVIC_InitStructure);
 
+    NVIC_InitStructure.NVIC_IRQChannel = DMA1_Channel3_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 2;
+    NVIC_Init(&NVIC_InitStructure);
+
     USART_Cmd(USART3, ENABLE);
 }
 
@@ -134,12 +148,15 @@ static void Slave_DMA_Config(void)
     DMA_InitStructure.DMA_M2M                = DMA_M2M_Disable;
     DMA_Init(DMA1_Channel3, &DMA_InitStructure);
 
+    DmaRx_Init(&slave_rx, DMA1_Channel3, slave_dma_buf,
+               SLAVE_DMA_BUF_SIZE, DMA1_FLAG_HT3, DMA1_FLAG_TC3);
+    DMA_ITConfig(DMA1_Channel3, DMA_IT_HT | DMA_IT_TC, ENABLE);
     DMA_Cmd(DMA1_Channel3, ENABLE);
 }
 
 /* ============================================
  * USART3 中断服务函数
- * IDLE 中断表示一段接收结束，从末尾向前查找完整协议帧。
+ * IDLE 中断仅清硬件标志并发布接收事件。
  * ============================================ */
 void USART3_IRQHandler(void)
 {
@@ -150,83 +167,69 @@ void USART3_IRQHandler(void)
         tmp = USART3->DR;
         (void)tmp;
 
-        Slave_TryExtractFrame();
-
-        /* 复位 DMA 接收位置，避免长期运行后游标错位。 */
-        DMA_Cmd(DMA1_Channel3, DISABLE);
-        DMA_SetCurrDataCounter(DMA1_Channel3, SLAVE_DMA_BUF_SIZE);
-        DMA_Cmd(DMA1_Channel3, ENABLE);
+        DmaRx_NotifyFromIsr(&slave_rx);
     }
 }
 
-/* ============================================
- * 从 DMA 缓冲区查找并解析最新的完整协议帧。
- * ============================================ */
-static void Slave_TryExtractFrame(void)
+void DMA1_Channel3_IRQHandler(void)
 {
-    uint32_t ndtr     = DMA_GetCurrDataCounter(DMA1_Channel3);
-    uint32_t received = SLAVE_DMA_BUF_SIZE - ndtr;
-    uint32_t offset;
-    uint8_t found_candidate = 0u;
+    DmaRx_OnDmaInterrupt(&slave_rx);
+}
 
-    /* 至少收到一帧才处理 */
-    if (received < INTER_MCU_FRAME_SIZE)
-    {
-        slave.format_errors++;
-        return;
-    }
+/* One bounded batch per main-loop turn. 41 bytes at 20Hz/115200 takes
+ * 3.56ms on the wire; the 256-byte ring retains up to six complete frames.
+ * IDLE is a notification, not a protocol frame delimiter.
+ */
+void SlaveMCU_Process(void)
+{
+    uint8_t bytes[SLAVE_SERVICE_BYTES];
+    uint8_t dropped;
+    uint16_t index;
+    uint16_t count = DmaRx_Read(&slave_rx, bytes, sizeof(bytes), &dropped);
 
-    offset = received - INTER_MCU_FRAME_SIZE;
-    for (;;)
-    {
-        if ((slave_dma_buf[offset] == INTER_MCU_MAGIC_0) &&
-            (slave_dma_buf[offset + 1u] == INTER_MCU_MAGIC_1))
-        {
-            InterMcuSensorData packet;
-            InterMcuDecodeStatus status;
-
-            found_candidate = 1u;
-            status = InterMcu_DecodeSensorFrame(
-                &slave_dma_buf[offset],
-                INTER_MCU_FRAME_SIZE,
-                &packet);
-
-            if (status == INTER_MCU_DECODE_OK)
-            {
-                Slave_ApplyPacket(&packet);
-                return;
-            }
-            if (status == INTER_MCU_DECODE_CRC)
-            {
-                slave.crc_errors++;
-            }
-            else
-            {
-                slave.format_errors++;
-            }
-        }
-
-        if (offset == 0u)
-        {
-            break;
-        }
-        --offset;
-    }
-
-    if (found_candidate == 0u)
-    {
-        slave.format_errors++;
+    if (dropped != 0u) slave_frame_length = 0u;
+    slave.rx_overruns = slave_rx.overruns;
+    for (index = 0u; index < count; ++index) {
+        Slave_FeedByte(bytes[index]);
     }
 }
 
+/* Sliding frame search preserves partial frames and recovers from noise,
+ * bad CRCs, and a frame header embedded in a rejected candidate.
+ */
+static void Slave_FeedByte(uint8_t byte)
+{
+    InterMcuSensorData packet;
+    InterMcuDecodeStatus status;
+
+    slave_frame[slave_frame_length++] = byte;
+    while (slave_frame_length != 0u) {
+        if (slave_frame[0] != INTER_MCU_MAGIC_0 ||
+            (slave_frame_length >= 2u && slave_frame[1] != INTER_MCU_MAGIC_1)) {
+            --slave_frame_length;
+            memmove(slave_frame, slave_frame + 1, slave_frame_length);
+            continue;
+        }
+        if (slave_frame_length < INTER_MCU_FRAME_SIZE) return;
+        status = InterMcu_DecodeSensorFrame(slave_frame, INTER_MCU_FRAME_SIZE, &packet);
+        if (status == INTER_MCU_DECODE_OK) {
+            Slave_ApplyPacket(&packet);
+            slave_frame_length = 0u;
+            return;
+        }
+        if (status == INTER_MCU_DECODE_CRC) slave.crc_errors++;
+        else slave.format_errors++;
+        --slave_frame_length;
+        memmove(slave_frame, slave_frame + 1, slave_frame_length);
+    }
+}
+
+/* Main-loop publication: no floating point or protocol work in an ISR. */
 /* ============================================
  * 将已经通过协议校验的数据原子地发布给主循环。
  * ============================================ */
 static void Slave_ApplyPacket(const InterMcuSensorData *packet)
 {
-    static uint8_t sequence_initialized = 0u;
-    static uint16_t expected_sequence = 0u;
-
     if ((sequence_initialized != 0u) &&
         (packet->sequence != expected_sequence))
     {

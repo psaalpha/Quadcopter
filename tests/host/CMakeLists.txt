@@ -102,3 +102,23 @@ endforeach()
 
 add_test(NAME pid_control COMMAND pid_control_test)
 add_test(NAME yaw_estimator COMMAND yaw_estimator_test)
+
+# Register-model regression tests for the actual Master drivers. No ARM
+# timing is simulated. Non-PIE keeps modeled 32-bit DMA addresses valid.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    add_executable(master_io_test
+        test_master_io.c
+        fakes/serial/registers.c
+        ../../Master_MCU/Hardware/dma_rx.c
+        ../../Master_MCU/Hardware/BlueSerial.c
+        ../../Master_MCU/Hardware/SlaveMCU.c
+        ../../Master_MCU/Hardware/PWM4.c
+        ../../Shared/Protocol/inter_mcu_protocol.c
+    )
+    target_include_directories(master_io_test PRIVATE
+        fakes/serial ../../Master_MCU/Hardware ../../Master_MCU/BSP ../../Shared/Protocol)
+    target_compile_options(master_io_test PRIVATE
+        -Wall -Wextra -Werror -pedantic -UNDEBUG -Wno-pointer-to-int-cast -fno-pie)
+    target_link_options(master_io_test PRIVATE -no-pie)
+    add_test(NAME master_io COMMAND master_io_test)
+endif()

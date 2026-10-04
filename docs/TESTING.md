@@ -112,3 +112,7 @@ ctest --test-dir build/host --output-on-failure
 - 修改任何电机放行条件。
 
 测试命名应描述行为，而不是函数实现。
+
+## 主控串口与 PWM 回归（Linux 主机）
+
+`master_io_test` 编译实际 BlueSerial、SlaveMCU、dma_rx 和 PWM4 驱动，使用最小寄存器模型验证：中断不解析、连续蓝牙命令、跨 IDLE 半帧、无 IDLE 的 DMA 通知、坏 CRC 重同步、跨缓冲边界、整圈溢出恢复、待处理 TC、32 位计数回绕、遥测忙时不阻塞，以及 PWM 预装载/安全最小输出。模型不证明真实寄存器时序、NVIC 延迟或实机飞行表现，也不替代 Keil 双目标构建。

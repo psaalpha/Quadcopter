@@ -14,6 +14,7 @@
 
 #include "stm32f10x.h"
 #include "BlueSerial.h"
+#include "dma_rx.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -46,7 +47,8 @@ float Contrl_Speed = 0;
  * DMA 缓冲区
  * ============================================ */
 #define BS_TX_BUF_SIZE      128u
-#define BS_RX_DMA_BUF_SIZE  128u
+#define BS_RX_DMA_BUF_SIZE  256u
+#define BS_RX_SERVICE_BYTES 64u
 
 static uint8_t bs_tx_buf[BS_TX_BUF_SIZE];
 static uint8_t bs_rx_dma_buf[BS_RX_DMA_BUF_SIZE] __attribute__((aligned(4)));
@@ -56,7 +58,8 @@ static volatile uint8_t bs_tx_busy = 0;       /* DMA TX 忙标志（ISR 清零�
 /* RX 解析状态机 */
 static uint8_t  bs_rx_state = 0;
 static uint8_t  bs_rx_idx   = 0;
-static uint32_t bs_rx_last_ndtr = BS_RX_DMA_BUF_SIZE;
+static DmaRx bs_rx;
+static uint32_t bs_rx_frame_errors;
 
 /* ============================================
  * 静态函数声明
@@ -64,7 +67,7 @@ static uint32_t bs_rx_last_ndtr = BS_RX_DMA_BUF_SIZE;
 static void BS_DMA_TX_Config(void);
 static void BS_DMA_RX_Config(void);
 static void BS_RxStateMachine(uint8_t byte);
-static void BS_ExtractRxBytes(void);
+
 
 /* ============================================
  * BlueSerial_Init
@@ -121,6 +124,11 @@ void BlueSerial_Init(void)
     NVIC_InitStructure.NVIC_IRQChannelCmd                = ENABLE;
     NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 3;
     NVIC_InitStructure.NVIC_IRQChannelSubPriority        = 3;
+    NVIC_Init(&NVIC_InitStructure);
+
+    /* DMA RX events also handle streams without IDLE gaps. */
+    NVIC_InitStructure.NVIC_IRQChannel = DMA1_Channel5_IRQn;
+    NVIC_InitStructure.NVIC_IRQChannelSubPriority = 3;
     NVIC_Init(&NVIC_InitStructure);
 
     /* ── 启动 USART1 ── */
@@ -181,8 +189,13 @@ static void BS_DMA_RX_Config(void)
     DMA_InitStructure.DMA_M2M                = DMA_M2M_Disable;
     DMA_Init(DMA1_Channel5, &DMA_InitStructure);
 
-    /* 记录初始 NDTR */
-    bs_rx_last_ndtr = BS_RX_DMA_BUF_SIZE;
+    DmaRx_Init(&bs_rx, DMA1_Channel5, bs_rx_dma_buf,
+               BS_RX_DMA_BUF_SIZE, DMA1_FLAG_HT5, DMA1_FLAG_TC5);
+    DMA_ITConfig(DMA1_Channel5, DMA_IT_HT | DMA_IT_TC, ENABLE);
+    bs_rx_state = 0u;
+    bs_rx_idx = 0u;
+    bs_rx_frame_errors = 0u;
+    BlueSerial_RxFlag = 0u;
 
     /* 立即启动 DMA 接收 */
     DMA_Cmd(DMA1_Channel5, ENABLE);
@@ -201,7 +214,7 @@ void DMA1_Channel4_IRQHandler(void)
 }
 
 /* ============================================
- * USART1 中断 — 仅处理 IDLE（RX 帧结束）
+ * USART1 中断 — IDLE 只发布事件，不作为协议帧边界
  * ============================================ */
 void USART1_IRQHandler(void)
 {
@@ -212,73 +225,69 @@ void USART1_IRQHandler(void)
         tmp = USART1->DR;
         (void)tmp;
 
-        BS_ExtractRxBytes();
+        DmaRx_NotifyFromIsr(&bs_rx);
     }
 }
 
-/* ============================================
- * 从 DMA 环形缓冲区提取新字节，送入状态机
- * ============================================ */
-static void BS_ExtractRxBytes(void)
+void DMA1_Channel5_IRQHandler(void)
 {
-    uint32_t ndtr     = DMA_GetCurrDataCounter(DMA1_Channel5);
-    uint32_t received;
-
-    /* 计算本轮新收到的字节数 */
-    if (ndtr <= bs_rx_last_ndtr)
-    {
-        /* 正常情况：DMA 继续向下写 */
-        received = bs_rx_last_ndtr - ndtr;
-    }
-    else
-    {
-        /* 环形回绕：DMA 回到缓冲区头部 */
-        received = BS_RX_DMA_BUF_SIZE - ndtr + bs_rx_last_ndtr;
-    }
-
-    if (received > 0 && received < BS_RX_DMA_BUF_SIZE)
-    {
-        uint32_t start_ofs = (BS_RX_DMA_BUF_SIZE - bs_rx_last_ndtr) % BS_RX_DMA_BUF_SIZE;
-
-        for (uint32_t i = 0; i < received; i++)
-        {
-            uint8_t byte = bs_rx_dma_buf[(start_ofs + i) % BS_RX_DMA_BUF_SIZE];
-            BS_RxStateMachine(byte);
-        }
-    }
-
-    bs_rx_last_ndtr = ndtr;
+    DmaRx_OnDmaInterrupt(&bs_rx);
 }
 
-/* ============================================
- * RX 帧解析状态机，帧格式: [tag,param,val]
- * ============================================ */
+/* Main loop only. Stop after one complete command so the caller applies
+ * it before continuing; subsequent bytes stay in the DMA ring.
+ */
+uint8_t BlueSerial_Process(void)
+{
+    uint8_t byte;
+    uint8_t dropped;
+    uint16_t budget;
+
+    if (BlueSerial_RxFlag != 0u) return 1u;
+    for (budget = 0u; budget < BS_RX_SERVICE_BYTES; ++budget) {
+        uint16_t count = DmaRx_Read(&bs_rx, &byte, 1u, &dropped);
+        if (dropped != 0u) {
+            bs_rx_state = 0u;
+            bs_rx_idx = 0u;
+        }
+        if (count == 0u) break;
+        BS_RxStateMachine(byte);
+        if (BlueSerial_RxFlag != 0u) return 1u;
+    }
+    return 0u;
+}
+
+uint32_t BlueSerial_GetRxOverruns(void)
+{
+    return bs_rx.overruns;
+}
+
+uint32_t BlueSerial_GetRxFrameErrors(void)
+{
+    return bs_rx_frame_errors;
+}
+
+/* Frame assembly runs only in the main loop. A new '[' resynchronizes
+ * a partial frame. An overlength command is discarded, never truncated.
+ */
 static void BS_RxStateMachine(uint8_t byte)
 {
-    if (bs_rx_state == 0)
-    {
-        if (byte == '[' && BlueSerial_RxFlag == 0)
-        {
-            bs_rx_state = 1;
-            bs_rx_idx   = 0;
-        }
+    if (byte == '[') {
+        bs_rx_state = 1u;
+        bs_rx_idx = 0u;
+        return;
     }
-    else if (bs_rx_state == 1)
-    {
-        if (byte == ']')
-        {
-            bs_rx_state = 0;
-            BlueSerial_RxPacket[bs_rx_idx] = '\0';
-            BlueSerial_RxFlag = 1;
-        }
-        else
-        {
-            if (bs_rx_idx < 99)
-            {
-                BlueSerial_RxPacket[bs_rx_idx] = byte;
-                bs_rx_idx++;
-            }
-        }
+    if (bs_rx_state == 0u) return;
+    if (byte == ']') {
+        bs_rx_state = 0u;
+        BlueSerial_RxPacket[bs_rx_idx] = '\0';
+        BlueSerial_RxFlag = 1u;
+    } else if (bs_rx_idx < sizeof(BlueSerial_RxPacket) - 1u) {
+        BlueSerial_RxPacket[bs_rx_idx++] = (char)byte;
+    } else {
+        bs_rx_frame_errors++;
+        bs_rx_state = 0u;
+        bs_rx_idx = 0u;
     }
 }
 
@@ -297,25 +306,24 @@ static void BS_WaitTxIdle(void)
  * BlueSerial_SendBuff — DMA 批量发送（主循环使用）
  *
  * 非阻塞：启动 DMA 后立即返回
- * 若上次发送未完成则等待
+ * 若上次发送未完成则跳过本次遥测，避免阻塞控制循环
  * ============================================ */
 void BlueSerial_SendBuff(uint8_t *Buff, uint16_t Len)
 {
     if (Len == 0 || Len > BS_TX_BUF_SIZE)
         return;
 
-    /* 等待上次 DMA 传输完成 */
-    BS_WaitTxIdle();
+    if (bs_tx_busy != 0u) return;
 
     /* 拷贝数据到 DMA 缓冲区（DMA 需要数据在传输期间保持有效） */
     memcpy(bs_tx_buf, Buff, Len);
 
     /* 重配 DMA 并启动 */
     DMA_Cmd(DMA1_Channel4, DISABLE);
+    DMA_ClearFlag(DMA1_FLAG_GL4);
     DMA_SetCurrDataCounter(DMA1_Channel4, Len);
-    DMA_Cmd(DMA1_Channel4, ENABLE);
-
     bs_tx_busy = 1;
+    DMA_Cmd(DMA1_Channel4, ENABLE);
 }
 
 /* ============================================
@@ -527,7 +535,7 @@ uint32_t PID_Param_Parse(void)
             }
         }
 
-        /* 保持标志为1时ISR不会写入缓冲区；清空完成后再释放。 */
+        /* Both frame assembly and parsing run in the main loop. */
         memset(BlueSerial_RxPacket, 0, 100);
         BlueSerial_RxFlag = 0;
     }

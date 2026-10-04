@@ -26,6 +26,10 @@ extern volatile uint8_t BlueSerial_RxFlag;
 #define PID_PARAM_UPDATE_CONTROL_SPEED  (1UL << 15)
 
 void BlueSerial_Init(void);
+/* Main-loop service; returns 1 when one command is ready to parse. */
+uint8_t BlueSerial_Process(void);
+uint32_t BlueSerial_GetRxOverruns(void);
+uint32_t BlueSerial_GetRxFrameErrors(void);
 void BlueSerial_SendByte(uint8_t Byte);
 void BlueSerial_SendArray(uint8_t *Array, uint16_t Length);
 void BlueSerial_SendString(char *String);

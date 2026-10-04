@@ -736,31 +736,6 @@
               <FilePath>.\Hardware\Pid.h</FilePath>
             </File>
             <File>
-              <FileName>NRF24L01.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\Hardware\NRF24L01.c</FilePath>
-            </File>
-            <File>
-              <FileName>NRF24L01.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\NRF24L01.h</FilePath>
-            </File>
-            <File>
-              <FileName>NRF24L01_Define.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\NRF24L01_Define.h</FilePath>
-            </File>
-            <File>
-              <FileName>QMC5883P.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\Hardware\QMC5883P.c</FilePath>
-            </File>
-            <File>
-              <FileName>QMC5883P.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\QMC5883P.h</FilePath>
-            </File>
-            <File>
               <FileName>Kalman.c</FileName>
               <FileType>1</FileType>
               <FilePath>.\Hardware\Kalman.c</FilePath>
@@ -769,21 +744,6 @@
               <FileName>Kalman.h</FileName>
               <FileType>5</FileType>
               <FilePath>.\Hardware\Kalman.h</FilePath>
-            </File>
-            <File>
-              <FileName>OLED.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\Hardware\OLED.c</FilePath>
-            </File>
-            <File>
-              <FileName>OLED.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\OLED.h</FilePath>
-            </File>
-            <File>
-              <FileName>OLED_Font.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\OLED_Font.h</FilePath>
             </File>
             <File>
               <FileName>crsf.c</FileName>
@@ -814,6 +774,16 @@
               <FileName>SlaveMCU.h</FileName>
               <FileType>5</FileType>
               <FilePath>.\Hardware\SlaveMCU.h</FilePath>
+            </File>
+            <File>
+              <FileName>dma_rx.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\dma_rx.c</FilePath>
+            </File>
+            <File>
+              <FileName>dma_rx.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\dma_rx.h</FilePath>
             </File>
           </Files>
         </Group>

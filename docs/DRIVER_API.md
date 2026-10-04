@@ -168,7 +168,7 @@ DriverStatus Uart_Send(const uint8_t *data, uint16_t length);
 |---|---|---|
 | `CRSF` | 已有 CRC、帧计数和 Process 边界 | 将公开全局通道逐步改为快照 API |
 | `SlaveMCU` | 有协议校验和诊断计数 | 增加数据新鲜度查询，减少公开可写全局 |
-| `BlueSerial` | DMA 收发，解析返回更新位图 | 清理与 `DMA_Serial` 的重复历史接口 |
+| `BlueSerial` | DMA 接收通知，主循环组帧/解析；DMA 遥测忙时跳过；重复接口已清理 | 保留必要的溢出和超长帧计数 |
 | `MPU6050` | 模块前缀明确 | 初始化/读取增加状态和超时 |
 | `PWM4` | 输出范围有限制 | 改为电机语义 API，而不是裸 CH1–CH4 |
 | `OpticalFlow` | 有有效性和超时处理 | 给 `IsDataValid/GetFlowX` 增加模块前缀 |
@@ -187,3 +187,12 @@ DriverStatus Uart_Send(const uint8_t *data, uint16_t length);
 5. 最后处理命名和目录迁移。
 
 每次只迁移一个驱动，并完成 Master/Slave 构建。涉及传感器数值或控制输入的迁移必须进行无桨对比测试。
+
+## 当前主控串口执行边界
+
+- CRSF 保持原实现：USART2 DMA 环形接收，5ms 主循环解析。
+- 蓝牙 USART1：256 字节 DMA 环形接收；IDLE/HT/TC 仅清标志、通知和累计绕圈。主循环 `BlueSerial_Process()` 每轮最多取 64 字节，收到一条命令即返回，紧接着 `PID_Param_Parse()` 应用；后续命令留待下一轮。
+- 从控 USART3：256 字节 DMA 环形接收，115200/8N1，41 字节/帧、20Hz；`SlaveMCU_Process()` 每轮最多处理 64 字节。保留半帧、验证 CRC16/版本、坏帧重新同步，控制使用最新有效帧。
+- 两条链路共用 `dma_rx`：主循环先取走事件再处理数据，不停止或重置接收 DMA；未读数据达到缓冲容量时保守丢弃并重置协议半帧。HT/TC 通知覆盖没有 IDLE 的连续流；短临界区内只处理游标，恢复原 PRIMASK。若全局关中断超过一整圈，单个硬件 TC 标志无法还原多圈，不能保证恢复全部数据。
+- 诊断：蓝牙 `BlueSerial_GetRxOverruns()` / `BlueSerial_GetRxFrameErrors()`；从控 `slave.rx_overruns` 和已有 CRC/格式/序号缺口计数。没有周期打印。
+- PWM：500Hz 内环计算后写四路 CCR，UDIS 短暂阻止半套值被装载；50Hz 更新事件加载预装载值。若更新边界恰落在写入期间，该次加载可能推迟到下一周期。安全路径直接写最小有效比较值并清除旧预装载，不人为重启 PWM 周期。

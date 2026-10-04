@@ -5,7 +5,7 @@
 #define BOARD_IMU_TASK_PERIOD_MS             2u
 #define BOARD_RC_TASK_PERIOD_MS              5u
 #define BOARD_ANGLE_TASK_PERIOD_MS           10u
-#define BOARD_MOTOR_TASK_PERIOD_MS           20u
+#define BOARD_TELEMETRY_TASK_PERIOD_MS           20u
 
 /* RC safety policy. */
 #define BOARD_RC_FAILSAFE_TIMEOUT_MS         300u

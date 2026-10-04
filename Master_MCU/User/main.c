@@ -3,9 +3,7 @@
 #include "MPU6050.h"
 #include "hubu.h"
 #include "PWM4.h"
-#include "QMC5883P.h"
 #include "Pid.h"
-#include "NRF24L01.h"
 #include "LED.h"
 #include "BlueSerial.h"
 #include "Kalman.h"     
@@ -18,36 +16,17 @@
 #include "control_timers.h"
 #include "inter_mcu_protocol.h"
 
-/* 中断和主循环共享的数据 */
-uint8_t  C=0;
-int16_t AX, AY, AZ, GX, GY, GZ;
+/* Application state, owned by the main loop unless marked volatile. */
 volatile float roll,pitch,yaw;
 volatile float rollRate,pitchRate,yawRate;
-float temp;
-long press;
-float absAlt, relAlt;
-extern float HMC5883L_Yaw;
 uint8_t Contrl;
 
-uint8_t SendFlag;								/* 发送标志 */
-uint8_t SendSuccessCount, SendFailedCount;		/* 发送成功/失败计数 */
-uint8_t ReceiveFlag;							/* 接收标志 */
-uint8_t ReceiveSuccessCount, ReceiveFailedCount;/* 接收成功/失败计数 */
-
-float p0,d0;
-extern volatile uint8_t NRF24L01_RxIrqFlag;
+uint8_t ReceiveSuccessCount;
 
 volatile uint32_t system_tick_5ms = 0;   /* 单调时基，允许自然回绕 */
 
 /* 显式飞行安全状态：启动锁、运行、失联、恢复锁。 */
 static FlightSafetyContext flight_safety;
-
-/* 主控侧 QMC5883P 旧驱动保留在工程中；运行路径使用从控上报的航向。 */
-uint8_t qmc_init_ok = 0;        /* QMC 初始化状态：0=失败，1=成功 */
-uint8_t qmc_calibrated = 0;     /* QMC 校准状态：0=未校准，1=已校准 */
-uint8_t yaw_update_flag = 0; 
-float qmc_yaw = 0.0f;           /* QMC 航向角，独立于 MPU yaw */
-
 
 /* 蓝牙调试发送 */
 uint8_t send_div_cnt = 0;
@@ -81,7 +60,6 @@ float    s_flow_alt;               /* 光流测距高度 (cm) */
 float    s_baro_alt;               /* 气压高度 (cm) */
 float    s_mag_yaw;                /* 磁力计航向 (0~360°) */
 
-char buf[32];
 
 static int16_t Clamp_Int16(int32_t value, int16_t min_value, int16_t max_value)
 {
@@ -151,10 +129,7 @@ static void FlightControl_HoldSafe(void)
 	Yaw_aim_Get(0.0f);
 	Drone_Motors_Stop();
 
-	PWM4_SetCompare1(BOARD_MOTOR_PWM_MIN_COMPARE);
-	PWM4_SetCompare2(BOARD_MOTOR_PWM_MIN_COMPARE);
-	PWM4_SetCompare3(BOARD_MOTOR_PWM_MIN_COMPARE);
-	PWM4_SetCompare4(BOARD_MOTOR_PWM_MIN_COMPARE);
+	PWM4_SetMinimumOutput();
 }
 
 
@@ -216,6 +191,22 @@ static void FlightControl_RunImuTask(void)
 	yawRate = yaw_rate_value;
 	Drone_Inner_Rate_PID_Control(
 		roll_rate_value, pitch_rate_value, yaw_rate_value);
+	if(!FlightSafety_MotorsAllowed(&flight_safety))
+	{
+		PWM4_SetMinimumOutput();
+	}
+	else
+	{
+		/* Publish all four results together; preload latches them at 50Hz.
+		 * UDIS prevents an update event between the four CCR writes.
+		 */
+		TIM_UpdateDisableConfig(TIM4, ENABLE);
+		PWM4_SetCompare3(Get_Motor_Duty_FrontLeft());
+		PWM4_SetCompare2(Get_Motor_Duty_FrontRight());
+		PWM4_SetCompare4(Get_Motor_Duty_BackRight());
+		PWM4_SetCompare1(Get_Motor_Duty_BackLeft());
+		TIM_UpdateDisableConfig(TIM4, DISABLE);
+	}
 }
 
 static void FlightControl_RunAngleTask(void)
@@ -290,7 +281,9 @@ static void Telemetry_SendPitch(void)
 	BlueSerial_SendBuff(send_buff, index);
 }
 
-static void FlightControl_RunMotorTask(void)
+/* TIM4 still publishes the 20ms telemetry task; motor CCRs are written
+ * by the 2ms IMU/inner-loop task. */
+static void FlightControl_RunTelemetryTask(void)
 {
 	LED1_ON();
 
@@ -299,21 +292,6 @@ static void FlightControl_RunMotorTask(void)
 	{
 		send_div_cnt = 0u;
 		Telemetry_SendPitch();
-	}
-
-	if(!FlightSafety_MotorsAllowed(&flight_safety))
-	{
-		PWM4_SetCompare1(BOARD_MOTOR_PWM_MIN_COMPARE);
-		PWM4_SetCompare2(BOARD_MOTOR_PWM_MIN_COMPARE);
-		PWM4_SetCompare3(BOARD_MOTOR_PWM_MIN_COMPARE);
-		PWM4_SetCompare4(BOARD_MOTOR_PWM_MIN_COMPARE);
-	}
-	else
-	{
-		PWM4_SetCompare3(Get_Motor_Duty_FrontLeft());
-		PWM4_SetCompare2(Get_Motor_Duty_FrontRight());
-		PWM4_SetCompare4(Get_Motor_Duty_BackRight());
-		PWM4_SetCompare1(Get_Motor_Duty_BackLeft());
 	}
 
 	LED1_OFF();
@@ -441,7 +419,7 @@ static void FlightControl_RefreshSlaveData(void)
 		return;
 	}
 
-	__disable_irq();
+	/* SlaveMCU_Process publishes data in this same main-loop context. */
 	slave.updated = 0u;
 	flow_x_snapshot = slave.flow_x;
 	flow_y_snapshot = slave.flow_y;
@@ -451,7 +429,6 @@ static void FlightControl_RefreshSlaveData(void)
 	mag_yaw_snapshot = slave.mag_yaw;
 	flow_quality_snapshot = slave.flow_quality;
 	status_flags_snapshot = slave.status_flags;
-	__enable_irq();
 
 	s_flow_x = flow_x_snapshot;
 	s_flow_y = flow_y_snapshot;
@@ -530,7 +507,10 @@ static void FlightControl_RefreshSlaveData(void)
 
 static void FlightControl_UpdatePidTuning(void)
 {
-	uint32_t pid_update_mask = PID_Param_Parse();
+	uint32_t pid_update_mask;
+
+	if(!BlueSerial_Process()) return;
+	pid_update_mask = PID_Param_Parse();
 
 	if(pid_update_mask & PID_PARAM_UPDATE_PKP) Pitch_Kp_Get(Pitch_Back_Kp());
 	if(pid_update_mask & PID_PARAM_UPDATE_PKI) Pitch_Ki_Get(Pitch_Back_Ki());
@@ -572,6 +552,7 @@ int main(void)
 			FlightControl_ServiceRc();
 		}
 		FlightControl_CheckFailsafe();
+		SlaveMCU_Process();
 		FlightControl_RefreshSlaveData();
 		FlightControl_CheckNavigationTimeout();
 
@@ -585,9 +566,9 @@ int main(void)
 			FlightControl_RunAngleTask();
 		}
 
-		if(AppScheduler_Take(APP_TASK_MOTOR_OUTPUT))
+		if(AppScheduler_Take(APP_TASK_TELEMETRY))
 		{
-			FlightControl_RunMotorTask();
+			FlightControl_RunTelemetryTask();
 		}
 		FlightControl_UpdateIndicators();
 		FlightControl_UpdatePidTuning();
@@ -625,12 +606,12 @@ void TIM1_UP_IRQHandler(void)
 	}
 }
 
-/* TIM4：20ms 只发布电机输出任务。 */
+/* TIM4：20ms 发布遥测服务任务，CCR 在 2ms 内环任务中更新。 */
 void TIM4_IRQHandler(void)
 {
 	if(TIM_GetITStatus(TIM4, TIM_IT_Update) == SET)
 	{
-		AppScheduler_NotifyFromIsr(APP_TASK_MOTOR_OUTPUT);
+		AppScheduler_NotifyFromIsr(APP_TASK_TELEMETRY);
 		TIM_ClearITPendingBit(TIM4, TIM_IT_Update);
 	}
 }

@@ -12,7 +12,7 @@ MPU6050 --软件 I2C--> 500Hz 姿态/角速度 --> 100Hz 角度外环
 目标角速度 --> 500Hz 角速度内环 --> 四电机混控 --> 50Hz PWM
 ```
 
-主控的 2/5/10/20ms 任务由定时器中断发布、主循环取走执行。中断不是完整任务，更不是 RTOS 线程。先读 [主控入口](../Master_MCU/User/main.c)、[调度器](../Master_MCU/App/app_scheduler.c) 和 [板级周期/通道配置](../Master_MCU/BSP/board_config.h)。
+主控的 2/5/10/20ms 任务由定时器中断发布、主循环取走执行。2ms 内环完成混控后写四路 CCR 预装载；PWM波形仍为50Hz，20ms任务只保留遥测服务。蓝牙与从控串口中断只通知，组帧与协议解析均在主循环。中断不是完整任务，更不是 RTOS 线程。先读 [主控入口](../Master_MCU/User/main.c)、[调度器](../Master_MCU/App/app_scheduler.c) 和 [板级周期/通道配置](../Master_MCU/BSP/board_config.h)。
 
 ## 按简历关键词阅读
 

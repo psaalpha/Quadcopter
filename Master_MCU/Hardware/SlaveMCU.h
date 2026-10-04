@@ -5,7 +5,7 @@
 
 /* ============================================
  * 从机传感器数据结构体
- * 主循环直接读取，无锁（ISR 整体更新）
+ * 只由主循环解析、发布和读取；ISR 不修改传感器数据
  * ============================================ */
 typedef struct {
     float    flow_altitude;   // 光流测距高度 (cm)，从 mm 转换
@@ -25,7 +25,8 @@ typedef struct {
     volatile uint32_t crc_errors;
     volatile uint32_t format_errors;
     volatile uint32_t sequence_gaps;
-    volatile uint8_t updated; // 新数据标记：ISR 置 1，主循环读后清 0
+    uint32_t rx_overruns;     // DMA unread bytes overwritten
+    uint8_t updated;         // 主循环解析置 1，消费后清 0
 } SlaveSensor_t;
 
 /* ============================================
@@ -37,5 +38,6 @@ extern SlaveSensor_t slave;
  * Public API
  * ============================================ */
 void SlaveMCU_Init(void);
+void SlaveMCU_Process(void);
 
 #endif /* __SLAVE_MCU_H */
