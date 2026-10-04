@@ -28,6 +28,7 @@ int16_t qmc_x_max = -32768, qmc_x_min = 32767;
 int16_t qmc_y_max = -32768, qmc_y_min = 32767;
 
 #define M_PI  3.1415926535f
+static uint16_t calibration_samples;
 
 /* ==================== Flash 存储（最后一页 0x0800FC00） ==================== */
 #define CALIB_FLASH_ADDR    0x0800FC00
@@ -37,7 +38,8 @@ int16_t qmc_y_max = -32768, qmc_y_min = 32767;
 static uint8_t Calib_SaveToFlash(void)
 {
     FLASH_Status fs;
-    __disable_irq();   // Flash 操作期间必须关全局中断
+    uint32_t interrupt_mask = __get_PRIMASK();
+    __disable_irq();   /* Caller pauses optical RX before flash stalls. */
 
     FLASH_Unlock();
 
@@ -48,14 +50,6 @@ static uint8_t Calib_SaveToFlash(void)
     fs = FLASH_ErasePage(CALIB_FLASH_ADDR);
     if (fs != FLASH_COMPLETE) goto fail;
 
-    /* 写入 Magic 低16位 */
-    fs = FLASH_ProgramHalfWord(CALIB_FLASH_ADDR, (uint16_t)(CALIB_FLASH_MAGIC & 0xFFFF));
-    if (fs != FLASH_COMPLETE) goto fail;
-
-    /* 写入 Magic 高16位 */
-    fs = FLASH_ProgramHalfWord(CALIB_FLASH_ADDR + 2, (uint16_t)(CALIB_FLASH_MAGIC >> 16));
-    if (fs != FLASH_COMPLETE) goto fail;
-
     /* 写入 X 偏移 */
     fs = FLASH_ProgramHalfWord(CALIB_FLASH_ADDR + 4, (uint16_t)qmc_x_offset);
     if (fs != FLASH_COMPLETE) goto fail;
@@ -64,13 +58,21 @@ static uint8_t Calib_SaveToFlash(void)
     fs = FLASH_ProgramHalfWord(CALIB_FLASH_ADDR + 6, (uint16_t)qmc_y_offset);
     if (fs != FLASH_COMPLETE) goto fail;
 
+    /* 写入 Magic 低16位 */
+    fs = FLASH_ProgramHalfWord(CALIB_FLASH_ADDR, (uint16_t)(CALIB_FLASH_MAGIC & 0xFFFF));
+    if (fs != FLASH_COMPLETE) goto fail;
+
+    /* 写入 Magic 高16位 */
+    fs = FLASH_ProgramHalfWord(CALIB_FLASH_ADDR + 2, (uint16_t)(CALIB_FLASH_MAGIC >> 16));
+    if (fs != FLASH_COMPLETE) goto fail;
+
     FLASH_Lock();
-    __enable_irq();
+    __set_PRIMASK(interrupt_mask);
     return 0;   // 成功
 
 fail:
     FLASH_Lock();
-    __enable_irq();
+    __set_PRIMASK(interrupt_mask);
     return 1;   // 失败
 }
 
@@ -299,19 +301,23 @@ uint8_t QMC5883P_UpdateYaw(void)
 
 void QMC5883P_Calibrate_Start(void)
 {
+    calibration_samples = 0u;
     qmc_x_max = -32768; qmc_x_min = 32767;
     qmc_y_max = -32768; qmc_y_min = 32767;
 }
 
 void QMC5883P_Calibrate_Collect(void)
 {
-    uint8_t buf[4];
+    uint8_t buf[6];
+    uint8_t status = QMC_ReadReg(QMC5883P_REG_STATUS);
+    if ((status & QMC5883P_STAT_DRDY) == 0u || (status & QMC5883P_STAT_OVFL) != 0u) return;
 
-    if (QMC_ReadMulti(QMC5883P_REG_X_LSB, buf, 4)) return;   // 复用通用读取
+    if (QMC_ReadMulti(QMC5883P_REG_X_LSB, buf, 6)) return;   // 复用通用读取
 
     int16_t x = (int16_t)((buf[1] << 8) | buf[0]);
     int16_t y = (int16_t)((buf[3] << 8) | buf[2]);
 
+    calibration_samples++;
     if (x > qmc_x_max) qmc_x_max = x;
     if (x < qmc_x_min) qmc_x_min = x;
     if (y > qmc_y_max) qmc_y_max = y;
@@ -320,18 +326,21 @@ void QMC5883P_Calibrate_Collect(void)
 
 uint8_t QMC5883P_Calibrate_End(void)
 {
+    int16_t previous_x = qmc_x_offset;
+    int16_t previous_y = qmc_y_offset;
+    if (calibration_samples < 2u || qmc_x_max <= qmc_x_min || qmc_y_max <= qmc_y_min) return 1u;
     qmc_x_offset = (qmc_x_max + qmc_x_min) / 2;
     qmc_y_offset = (qmc_y_max + qmc_y_min) / 2;
-
-    /* 写入 Flash，失败返回 1 */
-    if (Calib_SaveToFlash() != 0) return 1;
-
-    /* 回读验证：确认 Flash 数据与 RAM 一致 */
-    Calib_LoadFromFlash();
-    if (qmc_x_offset != (qmc_x_max + qmc_x_min) / 2 ||
-        qmc_y_offset != (qmc_y_max + qmc_y_min) / 2) {
-        return 1;
+    /* Magic is programmed last. Verify flash directly, rather than comparing
+     * RAM values that would be unchanged if loading invalid flash failed.
+     */
+    if (Calib_SaveToFlash() != 0u ||
+        *(__IO uint32_t *)CALIB_FLASH_ADDR != CALIB_FLASH_MAGIC ||
+        (int16_t)*(__IO uint16_t *)(CALIB_FLASH_ADDR + 4u) != qmc_x_offset ||
+        (int16_t)*(__IO uint16_t *)(CALIB_FLASH_ADDR + 6u) != qmc_y_offset) {
+        qmc_x_offset = previous_x;
+        qmc_y_offset = previous_y;
+        return 1u;
     }
-
-    return 0;   // 校准 + 保存成功
+    return 0u;
 }

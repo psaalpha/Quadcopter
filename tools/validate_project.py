@@ -37,6 +37,17 @@ REQUIRED_FILES = (
     "Master_MCU/App/flight_safety.c",
     "Master_MCU/BSP/board_config.h",
     "Master_MCU/BSP/control_timers.c",
+    "Shared/Drivers/dma_rx.c",
+    "Shared/Drivers/millisecond_clock.c",
+    "Shared/Scheduling/periodic_tasks.c",
+    "Slave_MCU/App/slave_app.c",
+    "Slave_MCU/App/slave_scheduler.c",
+    "Slave_MCU/BSP/slave_board.c",
+    "Slave_MCU/Hardware/slave_link.c",
+    "docs/RUNTIME_SCHEDULING.md",
+    "tests/host/test_scheduler.c",
+    "tests/host/test_slave_io.c",
+    "tests/host/test_slave_app.c",
     "tests/host/test_inter_mcu_protocol.c",
     "tests/host/test_flight_safety.c",
 )
@@ -95,6 +106,16 @@ def validate_keil_project(project: Path) -> list[str]:
             "the shared inter-MCU protocol"
         )
 
+    for shared in (r"..\Shared\Drivers\dma_rx.c",
+                   r"..\Shared\Drivers\millisecond_clock.c",
+                   r"..\Shared\Scheduling\periodic_tasks.c"):
+        if shared not in project_text:
+            errors.append(f"{project.relative_to(REPOSITORY_ROOT)} does not compile {shared}")
+    if project.parent.name == "Slave_MCU":
+        for node in root.iter():
+            if (node.tag in ("IROM", "OCR_RVCT4") and int(node.findtext("StartAddress") or "0", 0) == 0x08000000 and
+                    int(node.findtext("Size") or "0", 0) > 0xFC00):
+                errors.append("Slave IROM must reserve calibration flash at 0x0800FC00")
     return errors
 
 

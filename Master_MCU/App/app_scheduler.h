@@ -13,7 +13,7 @@ typedef enum
 } AppTaskId;
 
 void AppScheduler_Init(void);
-void AppScheduler_NotifyFromIsr(AppTaskId task);
+void AppScheduler_TickFromIsr(uint32_t elapsed_ms);
 uint8_t AppScheduler_Take(AppTaskId task);
 uint8_t AppScheduler_GetPending(AppTaskId task);
 uint32_t AppScheduler_GetOverrunCount(AppTaskId task);

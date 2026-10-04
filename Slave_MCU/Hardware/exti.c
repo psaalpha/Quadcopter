@@ -1,50 +1,82 @@
-#include "stm32f10x.h"
-#include "misc.h"
-
-/* PA0 按键中断标志，主循环检测后用于归零相对高度。 */
-volatile uint8_t key_flag = 0;
-
-void EXTI_Key_Init(void)
+#include "exti.h"
+static volatile uint8_t key_pending;
+static volatile uint8_t servo_pending;
+static volatile uint8_t calib_pulse_pending;
+static uint8_t calib_saw_low;
+static void ConfigureLine(uint32_t line, uint8_t pin_source,
+                          EXTITrigger_TypeDef trigger, IRQn_Type irq)
 {
-	GPIO_InitTypeDef GPIO_InitStruct;
-    EXTI_InitTypeDef EXTI_InitStruct;
-    NVIC_InitTypeDef NVIC_InitStruct;
-
-    /* 使能 GPIOA 和 AFIO 时钟。 */
+    EXTI_InitTypeDef exti;
+    NVIC_InitTypeDef interrupt;
+    GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, pin_source);
+    EXTI_ClearITPendingBit(line);
+    exti.EXTI_Line = line;
+    exti.EXTI_Mode = EXTI_Mode_Interrupt;
+    exti.EXTI_Trigger = trigger;
+    exti.EXTI_LineCmd = ENABLE;
+    EXTI_Init(&exti);
+    interrupt.NVIC_IRQChannel = irq;
+    interrupt.NVIC_IRQChannelPreemptionPriority = 1u;
+    interrupt.NVIC_IRQChannelSubPriority = 3u;
+    interrupt.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&interrupt);
+}
+void EXTI_Inputs_Init(void)
+{
+    GPIO_InitTypeDef gpio;
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA | RCC_APB2Periph_AFIO, ENABLE);
-
-    /* PA0 配置为上拉输入。 */
-    GPIO_InitStruct.GPIO_Pin = GPIO_Pin_0;
-    GPIO_InitStruct.GPIO_Mode = GPIO_Mode_IPU;
-    GPIO_InitStruct.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_Init(GPIOA, &GPIO_InitStruct);
-
-    /* 将 PA0 映射到 EXTI0。 */
-    GPIO_EXTILineConfig(GPIO_PortSourceGPIOA, GPIO_PinSource0);
-
-    /* 下降沿触发外部中断。 */
-    EXTI_InitStruct.EXTI_Line = EXTI_Line0;
-    EXTI_InitStruct.EXTI_Mode = EXTI_Mode_Interrupt;
-    EXTI_InitStruct.EXTI_Trigger = EXTI_Trigger_Falling;
-    EXTI_InitStruct.EXTI_LineCmd = ENABLE;
-    EXTI_Init(&EXTI_InitStruct);
-
-    /* NVIC 优先级配置。 */
-    NVIC_InitStruct.NVIC_IRQChannel = EXTI0_IRQn;
-    NVIC_InitStruct.NVIC_IRQChannelPreemptionPriority = 1;
-    NVIC_InitStruct.NVIC_IRQChannelSubPriority = 0;
-    NVIC_InitStruct.NVIC_IRQChannelCmd = ENABLE;
-    NVIC_Init(&NVIC_InitStruct);
+    gpio.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1 | GPIO_Pin_8;
+    gpio.GPIO_Mode = GPIO_Mode_IPU;
+    gpio.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOA, &gpio);
+    key_pending = 0u;
+    servo_pending = 1u; /* Publish the initial level too. */
+    calib_pulse_pending = 0u;
+    calib_saw_low = 0u; /* Startup-low alone is not a 1->0->1 pulse. */
+    ConfigureLine(EXTI_Line0, GPIO_PinSource0, EXTI_Trigger_Falling, EXTI0_IRQn);
+    ConfigureLine(EXTI_Line1, GPIO_PinSource1, EXTI_Trigger_Rising_Falling, EXTI1_IRQn);
+    ConfigureLine(EXTI_Line8, GPIO_PinSource8, EXTI_Trigger_Rising_Falling, EXTI9_5_IRQn);
 }
 void EXTI0_IRQHandler(void)
 {
-    if (EXTI_GetITStatus(EXTI_Line0) != RESET)
-    {
-        /* 中断中只置位标志，具体归零动作放在主循环处理。 */
-        key_flag = 1;
-        
+    if (EXTI_GetITStatus(EXTI_Line0) != RESET) {
         EXTI_ClearITPendingBit(EXTI_Line0);
+        key_pending = 1u;
     }
 }
+void EXTI1_IRQHandler(void)
+{
+    if (EXTI_GetITStatus(EXTI_Line1) != RESET) {
+        EXTI_ClearITPendingBit(EXTI_Line1);
+        servo_pending = 1u;
+    }
+}
+void EXTI9_5_IRQHandler(void)
+{
+    if (EXTI_GetITStatus(EXTI_Line8) != RESET) {
+        EXTI_ClearITPendingBit(EXTI_Line8);
+        /* Capture only edge history: a whole pulse between two main-loop
+         * turns must survive. Calibration itself stays in the main loop.
+         */
+        if (GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_8) == 0u) calib_saw_low = 1u;
+        else if (calib_saw_low != 0u) {
+            calib_saw_low = 0u;
+            calib_pulse_pending = 1u;
+        }
+    }
+}
+void EXTI_Inputs_Take(SlaveInputEvents *events)
+{
+    uint32_t mask = __get_PRIMASK();
+    __disable_irq();
+    events->key = key_pending;
+    events->servo_changed = servo_pending;
+    events->calibration_pulse = calib_pulse_pending;
+    key_pending = 0u;
+    servo_pending = 0u;
+    calib_pulse_pending = 0u;
+    __set_PRIMASK(mask);
+}
+uint8_t EXTI_ServoLevel(void) { return GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_1); }
 
-
+uint8_t EXTI_KeyLevel(void) { return GPIO_ReadInputDataBit(GPIOA, GPIO_Pin_0); }

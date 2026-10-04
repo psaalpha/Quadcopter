@@ -1,242 +1,284 @@
 #include "OpticalFlow.h"
-#include "stm32f10x_usart.h"
-#include "stm32f10x_gpio.h"
-#include "stm32f10x_rcc.h"
-#include "string.h"
-
-/* 光流模块解析结果与接收状态。 */
+#include "dma_rx.h"
+#include <string.h>
+#define RX_DMA_SIZE 256u
+#define RX_BATCH_SIZE 64u
+#define STALE_MS 200u
+#define DATA_VALID_FLAG 0xF5u
 OpticalFlow_Data_t OpticalFlow_Data;
-volatile uint8_t OpticalFlow_RxFlag = 0;
-
-static uint8_t  rx_buffer[20];
-static uint8_t  rx_index = 0;
-static uint8_t  total_len = 0;
-static volatile uint16_t rx_timeout = 0;
-/* 从控每 50ms 检查一次；超过 200ms 没有新光流/测距就撤销有效性。 */
-static volatile uint8_t flow_age_50ms = 4u;
-static volatile uint8_t distance_age_50ms = 4u;
-
-/* 光流模块协议常量，依据实际串口数据格式整理。 */
-#define FRAME_HEADER       0x24
-#define MSG_TYPE_DISTANCE  0x01   /* 14 字节测距包 */
-#define MSG_TYPE_FLOW      0x02   /* 18 字节光流包 */
-#define DATA_VALID_FLAG    0xF5
-#define DATA_STALE_TICKS   4u
-
-/* 初始化 USART1：PA9-TX，PA10-RX，115200，用于接收光流模块数据。 */
+volatile uint8_t OpticalFlow_RxFlag;
+static volatile uint8_t dma_buffer[RX_DMA_SIZE];
+static DmaRx receiver;
+static uint8_t frame[20];
+static uint8_t frame_index;
+static uint8_t frame_length;
+static uint32_t last_byte_ms;
+static uint32_t last_flow_ms;
+static uint32_t last_distance_ms;
+static uint8_t have_flow;
+static uint8_t have_distance;
+static uint8_t paused;
+static volatile uint8_t hardware_error;
+static OpticalFlow_Stats statistics;
+static void ResetParser(void)
+{
+    frame_index = 0u;
+    frame_length = 0u;
+}
+static void InvalidateData(void)
+{
+    have_flow = 0u;
+    have_distance = 0u;
+    OpticalFlow_Data.data_valid = 0u;
+    OpticalFlow_Data.distance = 0u;
+    OpticalFlow_Data.signal_strength = 0u;
+    OpticalFlow_Data.flow_x = 0;
+    OpticalFlow_Data.flow_y = 0;
+}
+static void StartReceiver(void)
+{
+    volatile uint32_t clear;
+    uint32_t mask = __get_PRIMASK();
+    __disable_irq();
+    USART_DMACmd(USART1, USART_DMAReq_Rx, DISABLE);
+    DMA_Cmd(DMA1_Channel5, DISABLE);
+    DMA_ClearFlag(DMA1_FLAG_GL5);
+    clear = USART1->SR;
+    clear = USART1->DR;
+    (void)clear;
+    DmaRx_Init(&receiver, DMA1_Channel5, dma_buffer, RX_DMA_SIZE,
+               DMA1_FLAG_HT5, DMA1_FLAG_TC5);
+    DMA_SetCurrDataCounter(DMA1_Channel5, RX_DMA_SIZE);
+    hardware_error = 0u;
+    ResetParser();
+    DMA_Cmd(DMA1_Channel5, ENABLE);
+    USART_DMACmd(USART1, USART_DMAReq_Rx, ENABLE);
+    __set_PRIMASK(mask);
+}
 void OpticalFlow_Init(void)
 {
-    GPIO_InitTypeDef  GPIO_InitStructure;
-    USART_InitTypeDef USART_InitStructure;
-    NVIC_InitTypeDef  NVIC_InitStructure;
-
+    GPIO_InitTypeDef gpio;
+    USART_InitTypeDef serial;
+    DMA_InitTypeDef dma;
+    NVIC_InitTypeDef interrupt;
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1 | RCC_APB2Periph_GPIOA, ENABLE);
-
-    GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_9;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_AF_PP;
-    GPIO_Init(GPIOA, &GPIO_InitStructure);
-
-    GPIO_InitStructure.GPIO_Pin  = GPIO_Pin_10;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
-    GPIO_Init(GPIOA, &GPIO_InitStructure);
-
-    USART_InitStructure.USART_BaudRate            = 115200;
-    USART_InitStructure.USART_WordLength          = USART_WordLength_8b;
-    USART_InitStructure.USART_StopBits            = USART_StopBits_1;
-    USART_InitStructure.USART_Parity              = USART_Parity_No;
-    USART_InitStructure.USART_Mode                = USART_Mode_Rx | USART_Mode_Tx;
-    USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
-    USART_Init(USART1, &USART_InitStructure);
-
-    USART_ITConfig(USART1, USART_IT_RXNE, ENABLE);
-
-    NVIC_InitStructure.NVIC_IRQChannel                   = USART1_IRQn;
-    NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 1;
-    NVIC_InitStructure.NVIC_IRQChannelSubPriority        = 0;
-    NVIC_InitStructure.NVIC_IRQChannelCmd                = ENABLE;
-    NVIC_Init(&NVIC_InitStructure);
-
-    USART_Cmd(USART1, ENABLE);
-
+    RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
+    /* Keep existing PA9 mapping; the receive path uses only PA10. */
+    gpio.GPIO_Pin = GPIO_Pin_9;
+    gpio.GPIO_Mode = GPIO_Mode_AF_PP;
+    gpio.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOA, &gpio);
+    gpio.GPIO_Pin = GPIO_Pin_10;
+    gpio.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+    GPIO_Init(GPIOA, &gpio);
+    USART_StructInit(&serial);
+    serial.USART_BaudRate = 115200u;
+    serial.USART_Mode = USART_Mode_Rx;
+    USART_Init(USART1, &serial);
+    DMA_DeInit(DMA1_Channel5);
+    DMA_StructInit(&dma);
+    dma.DMA_PeripheralBaseAddr = (uint32_t)&USART1->DR;
+    dma.DMA_MemoryBaseAddr = (uint32_t)dma_buffer;
+    dma.DMA_DIR = DMA_DIR_PeripheralSRC;
+    dma.DMA_BufferSize = RX_DMA_SIZE;
+    dma.DMA_MemoryInc = DMA_MemoryInc_Enable;
+    dma.DMA_Mode = DMA_Mode_Circular;
+    dma.DMA_Priority = DMA_Priority_High;
+    DMA_Init(DMA1_Channel5, &dma);
+    DMA_ITConfig(DMA1_Channel5, DMA_IT_HT | DMA_IT_TC | DMA_IT_TE, ENABLE);
+    interrupt.NVIC_IRQChannel = USART1_IRQn;
+    interrupt.NVIC_IRQChannelPreemptionPriority = 1u;
+    interrupt.NVIC_IRQChannelSubPriority = 0u;
+    interrupt.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&interrupt);
+    interrupt.NVIC_IRQChannel = DMA1_Channel5_IRQn;
+    interrupt.NVIC_IRQChannelSubPriority = 1u;
+    NVIC_Init(&interrupt);
     memset(&OpticalFlow_Data, 0, sizeof(OpticalFlow_Data));
-    OpticalFlow_RxFlag = 0;
-    rx_index  = 0;
-    rx_timeout = 0;
-    flow_age_50ms = DATA_STALE_TICKS;
-    distance_age_50ms = DATA_STALE_TICKS;
+    memset(&statistics, 0, sizeof(statistics));
+    OpticalFlow_RxFlag = 0u;
+    paused = 0u;
+    have_flow = 0u;
+    have_distance = 0u;
+    USART_Cmd(USART1, ENABLE);
+    StartReceiver();
+    USART_ITConfig(USART1, USART_IT_IDLE, ENABLE);
+    USART_ITConfig(USART1, USART_IT_ERR, ENABLE);
 }
-
-/* 解析光流模块数据包。
- *
- * 通用格式：
- * [0]    帧头 0x24
- * [1:2]  模块 ID 0x58 0x3C
- * [4]    消息类型：0x01=测距，0x02=光流
- * [6]    负载长度：0x05 或 0x09
- * [8..]  负载数据
- *
- * 测距包：信号强度、距离(mm)、固件版本。
- * 光流包：有效标志 0xF5、flow_x、flow_y，小端 int32。
- */
-static void ParsePacket(const uint8_t *buf, uint8_t len)
-{
-    /* 基本帧头校验。 */
-    if (buf[0] != 0x24 || buf[1] != 0x58 || buf[2] != 0x3C) return;
-
-    uint8_t payload_len = buf[6];
-    if (len != (uint8_t)(8 + payload_len + 1)) return;
-
-    uint8_t msg_type = buf[4];
-
-    if (msg_type == MSG_TYPE_FLOW && payload_len == 0x09) {
-        /* 光流包。 */
-        if (buf[8] == DATA_VALID_FLAG) {
-            OpticalFlow_Data.flow_x = (int32_t)(
-                ((uint32_t)buf[12] << 24) |
-                ((uint32_t)buf[11] << 16) |
-                ((uint32_t)buf[10] << 8)  |
-                ((uint32_t)buf[9])
-            );
-            OpticalFlow_Data.flow_y = (int32_t)(
-                ((uint32_t)buf[16] << 24) |
-                ((uint32_t)buf[15] << 16) |
-                ((uint32_t)buf[14] << 8)  |
-                ((uint32_t)buf[13])
-            );
-            OpticalFlow_Data.data_valid = 1;
-            flow_age_50ms = 0u;
-        } else {
-            OpticalFlow_Data.flow_x = 0;
-            OpticalFlow_Data.flow_y = 0;
-            OpticalFlow_Data.data_valid = 0;
-        }
-        OpticalFlow_RxFlag = 1;
-    }
-    else if (msg_type == MSG_TYPE_DISTANCE && payload_len == 0x05) {
-        /* 测距包。 */
-        OpticalFlow_Data.signal_strength  = buf[8];
-        OpticalFlow_Data.distance         = (uint16_t)((buf[10] << 8) | buf[9]);
-        OpticalFlow_Data.firmware_version = buf[11];
-        distance_age_50ms = 0u;
-        OpticalFlow_RxFlag = 1;
-    }
-}
-
-/* USART1 接收中断：按状态机接收光流变长帧。 */
 void USART1_IRQHandler(void)
 {
-    if (USART_GetITStatus(USART1, USART_IT_RXNE) != RESET) {
-        uint8_t rx = (uint8_t)USART_ReceiveData(USART1);
-        rx_timeout = 0;
-
-        if (rx_index == 0) {
-            /* 等待帧头。 */
-            if (rx == FRAME_HEADER) {
-                rx_buffer[0] = rx;
-                rx_index = 1;
-            }
-        }
-        else if (rx_index < 7) {
-            /* 读取包头 [1]~[6]；如果遇到新帧头则重新同步。 */
-            if (rx == FRAME_HEADER) {
-                rx_buffer[0] = rx;
-                rx_index = 1;
-                USART_ClearITPendingBit(USART1, USART_IT_RXNE);
-                return;
-            }
-            rx_buffer[rx_index++] = rx;
-
-            /* 收到 payload_len 后确定总包长。 */
-            if (rx_index == 7) {
-                uint8_t pl = rx_buffer[6];
-                total_len = 8 + pl + 1;
-                if (total_len > 20 || total_len < 9) {
-                    rx_index = 0;
-                }
-            }
-        }
-        else {
-            /* 读取负载和校验和。 */
-            rx_buffer[rx_index++] = rx;
-
-            if (rx_index >= total_len) {
-                ParsePacket(rx_buffer, total_len);
-                rx_index = 0;
-            }
-        }
-
-        USART_ClearITPendingBit(USART1, USART_IT_RXNE);
+    uint32_t status = USART1->SR;
+    if ((status & (USART_FLAG_IDLE | USART_FLAG_ORE | USART_FLAG_NE |
+                   USART_FLAG_FE | USART_FLAG_PE)) != 0u) {
+        volatile uint32_t clear = USART1->DR; /* SR then DR clears these flags. */
+        (void)clear;
+        if ((status & (USART_FLAG_ORE | USART_FLAG_NE | USART_FLAG_FE |
+                       USART_FLAG_PE)) != 0u) hardware_error = 1u;
+        DmaRx_NotifyFromIsr(&receiver);
     }
 }
-
-/* 每 50ms 调用一次：丢弃未接完的半帧，也让旧测量失效。
- * data_valid 只表示光流包带有效标记且未超时；协议末字节的具体校验
- * 尚待传感器手册确认，不能把它等同于完整包校验。
- */
-void OpticalFlow_TimeoutCheck(void)
+void DMA1_Channel5_IRQHandler(void)
 {
-    __disable_irq();
-    if (rx_index > 0) {
-        rx_timeout++;
-        if (rx_timeout >= DATA_STALE_TICKS) {
-            rx_index   = 0;
-            rx_timeout = 0;
-        }
+    if (DMA_GetFlagStatus(DMA1_FLAG_TE5) != RESET) {
+        DMA_ClearFlag(DMA1_FLAG_TE5);
+        hardware_error = 1u;
     }
-    if (flow_age_50ms < DATA_STALE_TICKS) flow_age_50ms++;
-    if (distance_age_50ms < DATA_STALE_TICKS) distance_age_50ms++;
-    if (flow_age_50ms >= DATA_STALE_TICKS) {
+    DmaRx_OnDmaInterrupt(&receiver);
+}
+/* Preserve the repository's module-specific payload semantics until the
+ * actual sensor/manual is identified. $X< resembles MSPv2, but this change
+ * does not invent a model, payload scale or checksum rule. checksum_valid
+ * remains zero: accepted framing is not a verified checksum.
+ */
+static void ParsePacket(uint32_t now_ms)
+{
+    uint8_t type = frame[4];
+    if (type == 0x02u && frame[6] == 9u) {
+        if (frame[8] == DATA_VALID_FLAG) {
+            uint32_t x = (uint32_t)frame[9] | ((uint32_t)frame[10] << 8) |
+                         ((uint32_t)frame[11] << 16) | ((uint32_t)frame[12] << 24);
+            uint32_t y = (uint32_t)frame[13] | ((uint32_t)frame[14] << 8) |
+                         ((uint32_t)frame[15] << 16) | ((uint32_t)frame[16] << 24);
+            memcpy(&OpticalFlow_Data.flow_x, &x, sizeof(x));
+            memcpy(&OpticalFlow_Data.flow_y, &y, sizeof(y));
+            OpticalFlow_Data.data_valid = 1u;
+            have_flow = 1u;
+            last_flow_ms = now_ms;
+        } else {
+            OpticalFlow_Data.data_valid = 0u;
+            OpticalFlow_Data.flow_x = 0;
+            OpticalFlow_Data.flow_y = 0;
+            have_flow = 0u;
+        }
+        statistics.flow_frames++;
+    } else if (type == 0x01u && frame[6] == 5u) {
+        OpticalFlow_Data.signal_strength = frame[8];
+        OpticalFlow_Data.distance = (uint16_t)((uint16_t)frame[10] << 8) | frame[9];
+        OpticalFlow_Data.firmware_version = frame[11];
+        have_distance = 1u;
+        last_distance_ms = now_ms;
+        statistics.distance_frames++;
+    } else {
+        statistics.frame_errors++;
+        return;
+    }
+    OpticalFlow_RxFlag = 1u;
+}
+static void FeedByte(uint8_t byte, uint32_t now_ms)
+{
+    if (frame_index == 0u) {
+        if (byte == 0x24u) frame[frame_index++] = byte;
+        return;
+    }
+    if ((frame_index == 1u && byte != 0x58u) ||
+        (frame_index == 2u && byte != 0x3Cu)) {
+        statistics.frame_errors++;
+        ResetParser();
+        if (byte == 0x24u) frame[frame_index++] = byte;
+        return;
+    }
+    frame[frame_index++] = byte;
+    if (frame_index == 8u) {
+        if (frame[7] != 0u ||
+            !((frame[4] == 0x01u && frame[6] == 5u) ||
+              (frame[4] == 0x02u && frame[6] == 9u))) {
+            statistics.frame_errors++;
+            ResetParser();
+            if (byte == 0x24u) frame[frame_index++] = byte;
+            return;
+        }
+        frame_length = (uint8_t)(9u + frame[6]);
+    }
+    if (frame_length != 0u && frame_index == frame_length) {
+        ParsePacket(now_ms);
+        ResetParser();
+    }
+}
+void OpticalFlow_Process(uint32_t now_ms)
+{
+    uint8_t bytes[RX_BATCH_SIZE];
+    uint8_t dropped;
+    uint8_t error;
+    uint16_t count;
+    uint16_t i;
+    uint32_t mask;
+    if (paused != 0u) return;
+    mask = __get_PRIMASK();
+    __disable_irq();
+    error = hardware_error;
+    hardware_error = 0u;
+    __set_PRIMASK(mask);
+    if (error != 0u) {
+        statistics.hardware_errors++;
+        statistics.buffer_overruns += receiver.overruns;
+        InvalidateData();
+        StartReceiver();
+        return;
+    }
+    count = DmaRx_Read(&receiver, bytes, sizeof(bytes), &dropped);
+    if (dropped != 0u) {
+        ResetParser();
+        InvalidateData();
+    }
+    if (frame_index != 0u && (uint32_t)(now_ms - last_byte_ms) >= STALE_MS) ResetParser();
+    for (i = 0u; i < count; ++i) FeedByte(bytes[i], now_ms);
+    if (count != 0u) last_byte_ms = now_ms;
+    OpticalFlow_TimeoutCheck(now_ms);
+}
+void OpticalFlow_TimeoutCheck(uint32_t now_ms)
+{
+    if (have_flow == 0u || (uint32_t)(now_ms - last_flow_ms) >= STALE_MS) {
         OpticalFlow_Data.data_valid = 0u;
         OpticalFlow_Data.flow_x = 0;
         OpticalFlow_Data.flow_y = 0;
     }
-    if (distance_age_50ms >= DATA_STALE_TICKS) {
+    if (have_distance == 0u || (uint32_t)(now_ms - last_distance_ms) >= STALE_MS) {
         OpticalFlow_Data.distance = 0u;
         OpticalFlow_Data.signal_strength = 0u;
     }
-    __enable_irq();
 }
-
+void OpticalFlow_Pause(void)
+{
+    uint32_t mask = __get_PRIMASK();
+    __disable_irq();
+    USART_ITConfig(USART1, USART_IT_IDLE, DISABLE);
+    USART_ITConfig(USART1, USART_IT_ERR, DISABLE);
+    USART_DMACmd(USART1, USART_DMAReq_Rx, DISABLE);
+    DMA_Cmd(DMA1_Channel5, DISABLE);
+    DMA_ClearFlag(DMA1_FLAG_GL5);
+    paused = 1u;
+    statistics.buffer_overruns += receiver.overruns;
+    statistics.flash_pauses++;
+    __set_PRIMASK(mask);
+    InvalidateData();
+    ResetParser();
+}
+void OpticalFlow_Resume(void)
+{
+    StartReceiver();
+    paused = 0u;
+    USART_ITConfig(USART1, USART_IT_IDLE, ENABLE);
+    USART_ITConfig(USART1, USART_IT_ERR, ENABLE);
+}
+void OpticalFlow_GetStats(OpticalFlow_Stats *stats)
+{
+    if (stats != 0) {
+        *stats = statistics;
+        if (paused == 0u) stats->buffer_overruns += receiver.overruns;
+    }
+}
 void OpticalFlow_GetSnapshot(OpticalFlow_Data_t *snapshot)
 {
-    if (snapshot == 0) return;
-    __disable_irq();
-    *snapshot = OpticalFlow_Data;
-    __enable_irq();
+    if (snapshot != 0) *snapshot = OpticalFlow_Data; /* Main owns all parsed fields. */
 }
-
-/* 查询是否收到新数据，读取后自动清标志。 */
 uint8_t OpticalFlow_HasNewData(void)
 {
-    if (OpticalFlow_RxFlag) {
-        OpticalFlow_RxFlag = 0;
-        return 1;
-    }
-    return 0;
+    uint8_t pending = OpticalFlow_RxFlag;
+    OpticalFlow_RxFlag = 0u;
+    return pending;
 }
-
-uint8_t IsDataValid(void)
-{
-    return OpticalFlow_Data.data_valid;
-}
-
-int32_t GetFlowX(void)
-{
-    return OpticalFlow_Data.flow_x;
-}
-
-int32_t GetFlowY(void)
-{
-    return OpticalFlow_Data.flow_y;
-}
-
-uint16_t GetDistance(void)
-{
-    return OpticalFlow_Data.distance;
-}
-
-uint8_t GetSignalStrength(void)
-{
-    return OpticalFlow_Data.signal_strength;
-}
+uint8_t IsDataValid(void) { return OpticalFlow_Data.data_valid; }
+int32_t GetFlowX(void) { return OpticalFlow_Data.flow_x; }
+int32_t GetFlowY(void) { return OpticalFlow_Data.flow_y; }
+uint16_t GetDistance(void) { return OpticalFlow_Data.distance; }
+uint8_t GetSignalStrength(void) { return OpticalFlow_Data.signal_strength; }

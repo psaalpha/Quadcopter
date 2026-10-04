@@ -25,11 +25,17 @@
 /*--------------------------------------------------------------------------*/
 /*  底层 SPI2 收发一个字节                                                   */
 /*--------------------------------------------------------------------------*/
+static uint32_t spi_timeouts;
+uint32_t AT7456E_GetSpiTimeouts(void) { return spi_timeouts; }
 static uint8_t SPI2_SwapByte(uint8_t tx_data)
 {
-    while (SPI_I2S_GetFlagStatus(SPI2, SPI_I2S_FLAG_TXE) == RESET);
+    uint32_t timeout = 2000u;
+    while (SPI_I2S_GetFlagStatus(SPI2, SPI_I2S_FLAG_TXE) == RESET && timeout != 0u) timeout--;
+    if (timeout == 0u) { spi_timeouts++; return 0xFFu; }
     SPI_I2S_SendData(SPI2, tx_data);
-    while (SPI_I2S_GetFlagStatus(SPI2, SPI_I2S_FLAG_RXNE) == RESET);
+    timeout = 2000u;
+    while (SPI_I2S_GetFlagStatus(SPI2, SPI_I2S_FLAG_RXNE) == RESET && timeout != 0u) timeout--;
+    if (timeout == 0u) { spi_timeouts++; return 0xFFu; }
     return (uint8_t)SPI_I2S_ReceiveData(SPI2);
 }
 
@@ -123,6 +129,7 @@ void AT7456E_Init(void)
     GPIO_Init(GPIOB, &GPIO_InitStructure);
 
     /* ---- SPI2 配置 ---- */
+    SPI_StructInit(&SPI_InitStructure);
     SPI_InitStructure.SPI_Mode              = SPI_Mode_Master;
     SPI_InitStructure.SPI_Direction         = SPI_Direction_2Lines_FullDuplex;
     SPI_InitStructure.SPI_DataSize          = SPI_DataSize_8b;

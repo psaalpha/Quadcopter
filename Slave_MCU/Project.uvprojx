@@ -18,7 +18,7 @@
           <Vendor>STMicroelectronics</Vendor>
           <PackID>Keil.STM32F1xx_DFP.2.4.1</PackID>
           <PackURL>https://www.keil.com/pack/</PackURL>
-          <Cpu>IRAM(0x20000000,0x5000) IROM(0x08000000,0x10000) CPUTYPE("Cortex-M3") CLOCK(12000000) ELITTLE</Cpu>
+          <Cpu>IRAM(0x20000000,0x5000) IROM(0x08000000,0xFC00) CPUTYPE("Cortex-M3") CLOCK(12000000) ELITTLE</Cpu>
           <FlashUtilSpec></FlashUtilSpec>
           <StartupFile></StartupFile>
           <FlashDriverDll>UL2CM3(-S0 -C0 -P0 -FD20000000 -FC1000 -FN1 -FF0STM32F10x_128 -FS08000000 -FL020000 -FP0($$Device:STM32F103C8$Flash\STM32F10x_128.FLM))</FlashDriverDll>
@@ -252,7 +252,7 @@
               <IROM>
                 <Type>1</Type>
                 <StartAddress>0x8000000</StartAddress>
-                <Size>0x10000</Size>
+                <Size>0xFC00</Size>
               </IROM>
               <XRAM>
                 <Type>0</Type>
@@ -277,7 +277,7 @@
               <OCR_RVCT4>
                 <Type>1</Type>
                 <StartAddress>0x8000000</StartAddress>
-                <Size>0x10000</Size>
+                <Size>0xFC00</Size>
               </OCR_RVCT4>
               <OCR_RVCT5>
                 <Type>1</Type>
@@ -340,7 +340,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;.\User;..\Platform\STM32F1\System;.\Hardware;..\Shared\Protocol</IncludePath>
+              <IncludePath>..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;.\User;..\Platform\STM32F1\System;.\Hardware;.\App;.\BSP;..\Shared\Protocol;..\Shared\Drivers;..\Shared\Scheduling</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -798,6 +798,96 @@
               <FileName>stm32f10x_it.h</FileName>
               <FileType>5</FileType>
               <FilePath>.\User\stm32f10x_it.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Shared Services</GroupName>
+          <Files>
+            <File>
+              <FileName>dma_rx.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Drivers\dma_rx.c</FilePath>
+            </File>
+            <File>
+              <FileName>dma_rx.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Drivers\dma_rx.h</FilePath>
+            </File>
+            <File>
+              <FileName>millisecond_clock.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Drivers\millisecond_clock.c</FilePath>
+            </File>
+            <File>
+              <FileName>millisecond_clock.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Drivers\millisecond_clock.h</FilePath>
+            </File>
+            <File>
+              <FileName>periodic_tasks.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Scheduling\periodic_tasks.c</FilePath>
+            </File>
+            <File>
+              <FileName>periodic_tasks.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Scheduling\periodic_tasks.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Application</GroupName>
+          <Files>
+            <File>
+              <FileName>slave_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\App\slave_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>slave_app.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\App\slave_app.h</FilePath>
+            </File>
+            <File>
+              <FileName>slave_scheduler.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\App\slave_scheduler.c</FilePath>
+            </File>
+            <File>
+              <FileName>slave_scheduler.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\App\slave_scheduler.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Board Support</GroupName>
+          <Files>
+            <File>
+              <FileName>slave_board.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\BSP\slave_board.c</FilePath>
+            </File>
+            <File>
+              <FileName>slave_board.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\BSP\slave_board.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Master Link</GroupName>
+          <Files>
+            <File>
+              <FileName>slave_link.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\Hardware\slave_link.c</FilePath>
+            </File>
+            <File>
+              <FileName>slave_link.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\Hardware\slave_link.h</FilePath>
             </File>
           </Files>
         </Group>

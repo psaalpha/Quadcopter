@@ -1,7 +1,7 @@
 #include "stm32f10x.h"
 #include <string.h>
-USART_TypeDef fake_usart1, fake_usart3;
-DMA_Channel_TypeDef fake_dma3, fake_dma4, fake_dma5;
+USART_TypeDef fake_usart1, fake_usart2, fake_usart3;
+DMA_Channel_TypeDef fake_dma3, fake_dma4, fake_dma5, fake_dma7;
 GPIO_TypeDef fake_gpioa, fake_gpiob;
 TIM_TypeDef fake_tim4;
 uint32_t fake_dma_flags, fake_interrupt_mask;
@@ -53,3 +53,11 @@ CHANNEL(1)
 CHANNEL(2)
 CHANNEL(3)
 CHANNEL(4)
+
+uint32_t fake_exti_pending;
+void DMA_StructInit(DMA_InitTypeDef *config) {memset(config,0,sizeof(*config));}
+void GPIO_EXTILineConfig(uint8_t port, uint8_t pin) {(void)port;(void)pin;}
+void EXTI_Init(EXTI_InitTypeDef *config) {(void)config;}
+FlagStatus EXTI_GetITStatus(uint32_t line) {return (fake_exti_pending & line) != 0u ? SET : RESET;}
+void EXTI_ClearITPendingBit(uint32_t line) {fake_exti_pending &= ~line;}
+uint8_t GPIO_ReadInputDataBit(GPIO_TypeDef *gpio, uint16_t pin) {return (gpio->input & pin) != 0u;}

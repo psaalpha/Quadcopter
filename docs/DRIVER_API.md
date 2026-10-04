@@ -196,3 +196,12 @@ DriverStatus Uart_Send(const uint8_t *data, uint16_t length);
 - 两条链路共用 `dma_rx`：主循环先取走事件再处理数据，不停止或重置接收 DMA；未读数据达到缓冲容量时保守丢弃并重置协议半帧。HT/TC 通知覆盖没有 IDLE 的连续流；短临界区内只处理游标，恢复原 PRIMASK。若全局关中断超过一整圈，单个硬件 TC 标志无法还原多圈，不能保证恢复全部数据。
 - 诊断：蓝牙 `BlueSerial_GetRxOverruns()` / `BlueSerial_GetRxFrameErrors()`；从控 `slave.rx_overruns` 和已有 CRC/格式/序号缺口计数。没有周期打印。
 - PWM：500Hz 内环计算后写四路 CCR，UDIS 短暂阻止半套值被装载；50Hz 更新事件加载预装载值。若更新边界恰落在写入期间，该次加载可能推迟到下一周期。安全路径直接写最小有效比较值并清除旧预装载，不人为重启 PWM 周期。
+
+## 从机 DMA 与事件接口（2026-10-04）
+
+当前从机的初始化/周期/事件入口已从 main 拆到 App/BSP。
+`OpticalFlow_Process(now_ms)`、`SlaveLink_Process(now_ms)`、`EXTI_Inputs_Take()` 都由主循环调用。
+光流 IRQ 不再解析；TX IRQ 不再修改业务 busy 状态。
+共享 `dma_rx` 位于 `Shared/Drivers`，两目标引用同一源文件。
+软件 I2C 短事务保留，显示分块、ADC EOC 轮询、UART DMA 避免长时间连续占用。
+完整的频率、缓冲所有权、Flash 暂停和诊断计数见 [运行调度](RUNTIME_SCHEDULING.md)。

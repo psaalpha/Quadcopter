@@ -27,14 +27,8 @@ void PWM4_Init(void)
 	TIM_TimeBaseInitStructure.TIM_RepetitionCounter = 0;
 	TIM_TimeBaseInit(TIM4, &TIM_TimeBaseInitStructure);
 	
-	TIM_ITConfig(TIM4, TIM_IT_Update, ENABLE);
-	
-	NVIC_InitTypeDef NVIC_InitStructure;
-	NVIC_InitStructure.NVIC_IRQChannel = TIM4_IRQn;
-	NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 3;
-	NVIC_InitStructure.NVIC_IRQChannelSubPriority = 1;
-	NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
-	NVIC_Init(&NVIC_InitStructure);
+	/* TIM4 generates PWM only; TIM2 schedules telemetry. */
+	TIM_ITConfig(TIM4, TIM_IT_Update, DISABLE);
 	
 	TIM_OCInitTypeDef TIM_OCInitStructure;
 	TIM_OCStructInit(&TIM_OCInitStructure);

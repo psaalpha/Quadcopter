@@ -14,6 +14,7 @@
 #include "flight_safety.h"
 #include "board_config.h"
 #include "control_timers.h"
+#include "millisecond_clock.h"
 #include "inter_mcu_protocol.h"
 
 /* Application state, owned by the main loop unless marked volatile. */
@@ -23,14 +24,12 @@ uint8_t Contrl;
 
 uint8_t ReceiveSuccessCount;
 
-volatile uint32_t system_tick_5ms = 0;   /* 单调时基，允许自然回绕 */
+volatile uint32_t system_time_ms = 0;   /* 单调时基，允许自然回绕 */
 
 /* 显式飞行安全状态：启动锁、运行、失联、恢复锁。 */
 static FlightSafetyContext flight_safety;
 
 /* 蓝牙调试发送 */
-uint8_t send_div_cnt = 0;
-#define SEND_DIV_NUM 5   
 uint8_t send_buff[32];
 
 /* 遥控通道映射结果 */
@@ -46,8 +45,8 @@ int16_t rc_yaw   = 0;       /* CH3 映射 ±900 */
  */
 static uint8_t nav_requested = 0u;
 static uint8_t nav_active = 0u;
-static uint32_t last_nav_frame_tick = 0u;
-static uint32_t last_nav_pid_tick = 0u;
+static uint32_t last_nav_frame_ms = 0u;
+static uint32_t last_nav_pid_ms = 0u;
 
 /* Yaw 摇杆是角速度命令，积分为航向目标；松杆后保持最后目标航向。 */
 static float yaw_target_deg = 0.0f;
@@ -85,8 +84,8 @@ static float Wrap_Yaw360(float angle)
 static void FlightControl_StopNavigation(void)
 {
 	nav_active = 0u;
-	last_nav_frame_tick = 0u;
-	last_nav_pid_tick = 0u;
+	last_nav_frame_ms = 0u;
+	last_nav_pid_ms = 0u;
 	Drone_Navigation_PID_Reset();
 }
 
@@ -281,20 +280,12 @@ static void Telemetry_SendPitch(void)
 	BlueSerial_SendBuff(send_buff, index);
 }
 
-/* TIM4 still publishes the 20ms telemetry task; motor CCRs are written
- * by the 2ms IMU/inner-loop task. */
+/* 100ms telemetry task, independent of the motor PWM timer. */
 static void FlightControl_RunTelemetryTask(void)
 {
-	LED1_ON();
-
-	send_div_cnt++;
-	if(send_div_cnt >= SEND_DIV_NUM)
-	{
-		send_div_cnt = 0u;
-		Telemetry_SendPitch();
-	}
-
-	LED1_OFF();
+    LED1_ON();
+    Telemetry_SendPitch();
+    LED1_OFF();
 }
 
 static void FlightControl_HandleRcFrame(void)
@@ -325,7 +316,7 @@ static void FlightControl_HandleRcFrame(void)
 
 	FlightSafety_OnValidRcFrame(
 		&flight_safety,
-		system_tick_5ms,
+		system_time_ms,
 		rc_thr,
 		BOARD_RC_THROTTLE_UNLOCK_PERCENT);
 
@@ -358,8 +349,8 @@ static void FlightControl_CheckFailsafe(void)
 {
 	if(FlightSafety_CheckTimeout(
 			&flight_safety,
-			system_tick_5ms,
-			BOARD_RC_FAILSAFE_TIMEOUT_TICKS))
+			system_time_ms,
+			BOARD_RC_FAILSAFE_TIMEOUT_MS))
 	{
 		servo_status = 0u;
 		MAG_intf = 0u;
@@ -371,8 +362,8 @@ static void FlightControl_CheckNavigationTimeout(void)
 {
 	/* 主从链路断开后，旧 PID 输出最多保留 200ms，然后回到手动目标。 */
 	if(nav_active &&
-	   (uint32_t)(system_tick_5ms - last_nav_frame_tick) >=
-		BOARD_NAV_SENSOR_TIMEOUT_TICKS)
+	   (uint32_t)(system_time_ms - last_nav_frame_ms) >=
+		BOARD_NAV_SENSOR_TIMEOUT_MS)
 	{
 		FlightControl_StopNavigation();
 		FlightControl_ApplyTargets();
@@ -410,8 +401,8 @@ static void FlightControl_RefreshSlaveData(void)
 	float mag_yaw_snapshot;
 	uint8_t flow_quality_snapshot;
 	uint16_t status_flags_snapshot;
-	uint32_t now_tick;
-	uint32_t elapsed_ticks;
+	uint32_t now_ms;
+	uint32_t elapsed_ms;
 	uint8_t sensors_valid;
 
 	if(!slave.updated)
@@ -474,7 +465,7 @@ static void FlightControl_RefreshSlaveData(void)
 		return;
 	}
 
-	now_tick = system_tick_5ms;
+	now_ms = system_time_ms;
 	if(nav_active == 0u)
 	{
 		/* 接入瞬间捕获当前高度和光流积分量，不让旧设定值造成阶跃。
@@ -484,13 +475,13 @@ static void FlightControl_RefreshSlaveData(void)
 		Position_aim_Get(flow_x_snapshot, flow_y_snapshot);
 		Drone_Navigation_PID_Reset();
 		nav_active = 1u;
-		last_nav_pid_tick = now_tick;
+		last_nav_pid_ms = now_ms;
 	}
 	else
 	{
-		elapsed_ticks = (uint32_t)(now_tick - last_nav_pid_tick);
-		if((elapsed_ticks == 0u) ||
-		   (elapsed_ticks >= BOARD_NAV_SENSOR_TIMEOUT_TICKS))
+		elapsed_ms = (uint32_t)(now_ms - last_nav_pid_ms);
+		if((elapsed_ms == 0u) ||
+		   (elapsed_ms >= BOARD_NAV_SENSOR_TIMEOUT_MS))
 		{
 			FlightControl_StopNavigation();
 			FlightControl_ApplyTargets();
@@ -498,10 +489,10 @@ static void FlightControl_RefreshSlaveData(void)
 		}
 		Drone_Altitude_Position_PID_Control(
 			baro_alt_snapshot, flow_x_snapshot, flow_y_snapshot,
-			(float)elapsed_ticks * 0.005f);
-		last_nav_pid_tick = now_tick;
+			(float)elapsed_ms * 0.001f);
+		last_nav_pid_ms = now_ms;
 	}
-	last_nav_frame_tick = now_tick;
+	last_nav_frame_ms = now_ms;
 	FlightControl_ApplyTargets();
 }
 
@@ -575,43 +566,15 @@ int main(void)
 	}
 }
 
-/* TIM2：2ms 只发布 IMU/内环任务，浮点计算在主循环执行。 */
+/* 1ms ISR: timestamp accounting and task notification only. */
 void TIM2_IRQHandler(void)
 {
-	if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
-	{
-		AppScheduler_NotifyFromIsr(APP_TASK_IMU_UPDATE);
-		TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
-	}
-}
-
-/* TIM3：10ms 只发布角度外环任务。 */
-void TIM3_IRQHandler(void)
-{
-	if (TIM_GetITStatus(TIM3, TIM_IT_Update) != RESET)
-	{
-		AppScheduler_NotifyFromIsr(APP_TASK_ANGLE_CONTROL);
-		TIM_ClearITPendingBit(TIM3, TIM_IT_Update);
-	}
-}
-
-/* TIM1：5ms 更新时间基并发布 CRSF 服务任务。 */
-void TIM1_UP_IRQHandler(void)
-{
-	if (TIM_GetITStatus(TIM1, TIM_IT_Update) == SET)
-	{
-		system_tick_5ms++;
-		AppScheduler_NotifyFromIsr(APP_TASK_RC_SERVICE);
-		TIM_ClearITPendingBit(TIM1, TIM_IT_Update);
-	}
-}
-
-/* TIM4：20ms 发布遥测服务任务，CCR 在 2ms 内环任务中更新。 */
-void TIM4_IRQHandler(void)
-{
-	if(TIM_GetITStatus(TIM4, TIM_IT_Update) == SET)
-	{
-		AppScheduler_NotifyFromIsr(APP_TASK_TELEMETRY);
-		TIM_ClearITPendingBit(TIM4, TIM_IT_Update);
-	}
+    if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
+    {
+        uint32_t elapsed_ms;
+        TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
+        elapsed_ms = MillisecondClock_Elapsed();
+        system_time_ms += elapsed_ms;
+        AppScheduler_TickFromIsr(elapsed_ms);
+    }
 }

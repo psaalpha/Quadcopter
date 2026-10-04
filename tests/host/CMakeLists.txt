@@ -109,16 +109,51 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
     add_executable(master_io_test
         test_master_io.c
         fakes/serial/registers.c
-        ../../Master_MCU/Hardware/dma_rx.c
+        ../../Shared/Drivers/dma_rx.c
         ../../Master_MCU/Hardware/BlueSerial.c
         ../../Master_MCU/Hardware/SlaveMCU.c
         ../../Master_MCU/Hardware/PWM4.c
         ../../Shared/Protocol/inter_mcu_protocol.c
     )
     target_include_directories(master_io_test PRIVATE
-        fakes/serial ../../Master_MCU/Hardware ../../Master_MCU/BSP ../../Shared/Protocol)
+        fakes/serial ../../Master_MCU/Hardware ../../Master_MCU/BSP ../../Shared/Protocol ../../Shared/Drivers)
     target_compile_options(master_io_test PRIVATE
         -Wall -Wextra -Werror -pedantic -UNDEBUG -Wno-pointer-to-int-cast -fno-pie)
     target_link_options(master_io_test PRIVATE -no-pie)
     add_test(NAME master_io COMMAND master_io_test)
+endif()
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    add_executable(scheduler_test
+        test_scheduler.c fakes/serial/registers.c
+        ../../Shared/Scheduling/periodic_tasks.c
+        ../../Master_MCU/App/app_scheduler.c
+        ../../Master_MCU/App/flight_safety.c
+        ../../Slave_MCU/App/slave_scheduler.c)
+    target_include_directories(scheduler_test PRIVATE
+        fakes/serial ../../Shared/Scheduling ../../Master_MCU/App
+        ../../Master_MCU/BSP ../../Slave_MCU/App ../../Slave_MCU/BSP)
+    add_executable(slave_io_test
+        test_slave_io.c fakes/serial/registers.c
+        ../../Shared/Drivers/dma_rx.c ../../Shared/Protocol/inter_mcu_protocol.c
+        ../../Slave_MCU/Hardware/OpticalFlow.c
+        ../../Slave_MCU/Hardware/slave_link.c ../../Slave_MCU/Hardware/exti.c)
+    target_include_directories(slave_io_test PRIVATE
+        fakes/serial ../../Shared/Drivers ../../Shared/Protocol ../../Slave_MCU/Hardware)
+    add_executable(slave_app_test
+        test_slave_app.c fakes/serial/registers.c
+        ../../Slave_MCU/App/slave_app.c ../../Slave_MCU/App/slave_scheduler.c
+        ../../Shared/Scheduling/periodic_tasks.c)
+    target_include_directories(slave_app_test PRIVATE
+        fakes/serial ../../Slave_MCU/App ../../Slave_MCU/BSP ../../Slave_MCU/Hardware
+        ../../Shared/Protocol ../../Shared/Scheduling ../../Platform/STM32F1/System)
+    target_link_libraries(slave_app_test PRIVATE m)
+    foreach(io_test scheduler_test slave_io_test slave_app_test)
+        target_compile_options(${io_test} PRIVATE
+            -Wall -Wextra -Werror -pedantic -UNDEBUG -Wno-pointer-to-int-cast -fno-pie)
+        target_link_options(${io_test} PRIVATE -no-pie)
+    endforeach()
+    add_test(NAME scheduler COMMAND scheduler_test)
+    add_test(NAME slave_io COMMAND slave_io_test)
+    add_test(NAME slave_app COMMAND slave_app_test)
 endif()

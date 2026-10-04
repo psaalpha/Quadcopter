@@ -1,5 +1,7 @@
 # Quadcopter STM32 Flight Controller
 
+当前分支的主从频率、DMA 和中断边界见 [运行调度整理](docs/RUNTIME_SCHEDULING.md)。
+
 这是一个双 STM32F103C8T6 飞控工程：
 
 - `Master_MCU` 负责遥控输入、姿态解算、串级 PID、安全状态和四路电机输出。

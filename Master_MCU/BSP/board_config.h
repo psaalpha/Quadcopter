@@ -5,12 +5,10 @@
 #define BOARD_IMU_TASK_PERIOD_MS             2u
 #define BOARD_RC_TASK_PERIOD_MS              5u
 #define BOARD_ANGLE_TASK_PERIOD_MS           10u
-#define BOARD_TELEMETRY_TASK_PERIOD_MS           20u
+#define BOARD_TELEMETRY_TASK_PERIOD_MS        100u
 
 /* RC safety policy. */
 #define BOARD_RC_FAILSAFE_TIMEOUT_MS         300u
-#define BOARD_RC_FAILSAFE_TIMEOUT_TICKS      \
-    (BOARD_RC_FAILSAFE_TIMEOUT_MS / BOARD_RC_TASK_PERIOD_MS)
 #define BOARD_RC_THROTTLE_UNLOCK_PERCENT     5u
 
 /* CRSF channel assignment. */
@@ -27,8 +25,6 @@
 /* 辅助控制只在有效新帧、足够油门和有效测距条件下工作。 */
 #define BOARD_NAV_MIN_THROTTLE_PERCENT       10u
 #define BOARD_NAV_SENSOR_TIMEOUT_MS          200u
-#define BOARD_NAV_SENSOR_TIMEOUT_TICKS       \
-    (BOARD_NAV_SENSOR_TIMEOUT_MS / BOARD_RC_TASK_PERIOD_MS)
 #define BOARD_NAV_FLOW_QUALITY_MIN           20u
 #define BOARD_NAV_DISTANCE_MIN_MM            100u
 #define BOARD_NAV_DISTANCE_MAX_MM            3000u

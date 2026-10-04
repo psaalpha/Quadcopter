@@ -1,86 +1,36 @@
 #include "app_scheduler.h"
-
-/*
- * Periodic control tasks are coalesced instead of replayed back-to-back.
- * A second notification while one is pending is a missed deadline and is
- * counted as an overrun.
- */
-#define APP_TASK_PENDING_MAX  1u
-
-static volatile uint8_t pending_tasks[APP_TASK_COUNT];
-static volatile uint32_t task_overruns[APP_TASK_COUNT];
-
+#include "board_config.h"
+#include "periodic_tasks.h"
+static PeriodicTasks tasks;
 void AppScheduler_Init(void)
 {
-    uint8_t index;
-
+    static const uint32_t periods[APP_TASK_COUNT] = {
+        BOARD_IMU_TASK_PERIOD_MS, BOARD_RC_TASK_PERIOD_MS,
+        BOARD_ANGLE_TASK_PERIOD_MS, BOARD_TELEMETRY_TASK_PERIOD_MS
+    };
+    uint32_t mask = __get_PRIMASK();
     __disable_irq();
-    for (index = 0u; index < (uint8_t)APP_TASK_COUNT; ++index)
-    {
-        pending_tasks[index] = 0u;
-        task_overruns[index] = 0u;
-    }
-    __enable_irq();
+    PeriodicTasks_Init(&tasks, periods, APP_TASK_COUNT);
+    __set_PRIMASK(mask);
 }
-
-void AppScheduler_NotifyFromIsr(AppTaskId task)
+void AppScheduler_TickFromIsr(uint32_t elapsed_ms)
 {
-    uint8_t index = (uint8_t)task;
-
-    if (index >= (uint8_t)APP_TASK_COUNT)
-    {
-        return;
-    }
-
-    if (pending_tasks[index] < APP_TASK_PENDING_MAX)
-    {
-        pending_tasks[index]++;
-    }
-    else
-    {
-        task_overruns[index]++;
-    }
+    PeriodicTasks_Advance(&tasks, elapsed_ms);
 }
-
 uint8_t AppScheduler_Take(AppTaskId task)
 {
-    uint8_t index = (uint8_t)task;
-    uint8_t available = 0u;
-
-    if (index >= (uint8_t)APP_TASK_COUNT)
-    {
-        return 0u;
-    }
-
+    uint8_t available;
+    uint32_t mask = __get_PRIMASK();
     __disable_irq();
-    if (pending_tasks[index] != 0u)
-    {
-        pending_tasks[index]--;
-        available = 1u;
-    }
-    __enable_irq();
-
+    available = PeriodicTasks_Take(&tasks, (uint8_t)task);
+    __set_PRIMASK(mask);
     return available;
 }
-
 uint8_t AppScheduler_GetPending(AppTaskId task)
 {
-    uint8_t index = (uint8_t)task;
-
-    if (index >= (uint8_t)APP_TASK_COUNT)
-    {
-        return 0u;
-    }
-    return pending_tasks[index];
+    return (uint8_t)task < APP_TASK_COUNT ? tasks.pending[task] : 0u;
 }
-
 uint32_t AppScheduler_GetOverrunCount(AppTaskId task)
 {
-    uint8_t index = (uint8_t)task;
-
-    if (index >= (uint8_t)APP_TASK_COUNT)
-    {
-        return 0u;
-    }
-    return task_overruns[index];
+    return (uint8_t)task < APP_TASK_COUNT ? tasks.overruns[task] : 0u;
 }

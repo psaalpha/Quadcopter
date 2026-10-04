@@ -1,5 +1,34 @@
 # Changelog
 
+## 2026-10-04 - Unify millisecond scheduling and refactor Slave services
+
+### Changed
+- Use one TIM2 1ms scheduler per MCU. Preserve Master 500/200/100Hz control
+  tasks and directly schedule 10Hz telemetry; retain TIM4 50Hz PWM preloads.
+- Convert Master RC/navigation timestamps and elapsed PID time to milliseconds.
+  Keep CRSF source and processing logic unchanged.
+- Receive Slave optical flow with 256-byte circular DMA + IDLE/HT/TC;
+  parse bounded batches in main and preserve the existing unconfirmed payload semantics.
+- Send existing 41-byte inter-MCU packets at 20Hz using USART2 DMA with a
+  private buffer, main-loop completion consumption, busy/error counters and timeout recovery.
+- Move Slave policy into App and board configuration into BSP. Use EXTI notifications
+  for servo/calibration/key inputs, 20ms key debounce and a timestamp-based 10s calibration.
+- Read magnetometer/calibration samples only when DRDY is set; reserve the last
+  1KB of Slave flash, verify saves, and pause/reset optical RX around flash writes.
+- Configure ADC at 12MHz with nonblocking conversion completion; bound SPI waits.
+  Prepare display data at 5Hz and render one OLED character or OSD field per main-loop turn.
+- Share DMA RX/scheduling helpers and update Keil project references. Match
+  Kalman header case to its filename for Linux filesystem compatibility.
+
+### Validation
+- Eight GCC host regression suites pass; both targets pass C99 syntax checking
+  with the actual CMSIS/SPL headers. Project/reference/flash-page checks pass.
+- Keil/ARMCC5 and ARM GCC are unavailable in this cloud workspace. No firmware
+  link, image size or hardware timing validation is claimed.
+- See [runtime scheduling](docs/RUNTIME_SCHEDULING.md) for clocks, rates,
+  diagnostics, retained optical-protocol uncertainty and remaining hardware validation.
+
+
 ## 2026-07-26 - Keep Host assertions active in Release
 
 ### Fixed

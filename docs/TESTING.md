@@ -116,3 +116,12 @@ ctest --test-dir build/host --output-on-failure
 ## 主控串口与 PWM 回归（Linux 主机）
 
 `master_io_test` 编译实际 BlueSerial、SlaveMCU、dma_rx 和 PWM4 驱动，使用最小寄存器模型验证：中断不解析、连续蓝牙命令、跨 IDLE 半帧、无 IDLE 的 DMA 通知、坏 CRC 重同步、跨缓冲边界、整圈溢出恢复、待处理 TC、32 位计数回绕、遥测忙时不阻塞，以及 PWM 预装载/安全最小输出。模型不证明真实寄存器时序、NVIC 延迟或实机飞行表现，也不替代 Keil 双目标构建。
+
+## 毫秒调度与从机回归
+
+Linux 新增 `scheduler_test`、`slave_io_test`、`slave_app_test`，合计 8 项。
+分别验证周期/合并/时间回绕及 300ms 保护，从机 DMA 所有权/分帧/溢出/输入脉冲，
+以及 20Hz 发布、10 秒校准等待 TX 后保存、逐字符显示期间持续服务光流。
+寄存器模型不证明真实 UART IDLE 清除时序、GPIO 脉冲最短宽度或总线电气特性。
+本次云端只完成主机回归、真实 SPL 头文件语法检查和工程引用检查，未完成 ARMCC 链接。
+校准 Flash 页保留、体积、ADC 电压、舵机波形和 DMA 通知时序需在 Keil/板上核验。

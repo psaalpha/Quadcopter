@@ -112,5 +112,7 @@ void OSD_DisplayFloat(uint8_t row, uint8_t columns, uint8_t int_n, uint8_t float
 #define LOS_DETECT              (1 << 2)
 #define VSYNC_FLAG              (1 << 4)
 
+uint32_t AT7456E_GetSpiTimeouts(void);
+
 #endif /* __AT7456E_H */
 

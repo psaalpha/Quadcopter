@@ -7,14 +7,19 @@ typedef enum {RESET=0, SET=1} FlagStatus;
 typedef enum {DISABLE=0, ENABLE=1} FunctionalState;
 typedef struct {uint32_t SR, DR;} USART_TypeDef;
 typedef struct {uint16_t remaining, size; uint8_t *memory; uint8_t enabled;} DMA_Channel_TypeDef;
-typedef struct {uint32_t unused;} GPIO_TypeDef;
+typedef struct {uint32_t input;} GPIO_TypeDef;
+typedef uint32_t IRQn_Type;
+typedef uint32_t EXTITrigger_TypeDef;
+typedef struct {uint32_t EXTI_Line, EXTI_Mode, EXTI_Trigger; FunctionalState EXTI_LineCmd;} EXTI_InitTypeDef;
 typedef struct {uint16_t active[4], pending[4]; uint8_t preload[4], update_disabled;} TIM_TypeDef;
-extern USART_TypeDef fake_usart1, fake_usart3;
-extern DMA_Channel_TypeDef fake_dma3, fake_dma4, fake_dma5;
+extern USART_TypeDef fake_usart1, fake_usart2, fake_usart3;
+extern DMA_Channel_TypeDef fake_dma3, fake_dma4, fake_dma5, fake_dma7;
 extern GPIO_TypeDef fake_gpioa, fake_gpiob;
 extern TIM_TypeDef fake_tim4;
 #define USART1 (&fake_usart1)
+#define USART2 (&fake_usart2)
 #define USART3 (&fake_usart3)
+#define DMA1_Channel7 (&fake_dma7)
 #define DMA1_Channel3 (&fake_dma3)
 #define DMA1_Channel4 (&fake_dma4)
 #define DMA1_Channel5 (&fake_dma5)
@@ -65,6 +70,7 @@ void TIM_ITConfig(TIM_TypeDef *tim, uint16_t bits, FunctionalState state);
 void TIM_OCStructInit(TIM_OCInitTypeDef *config);
 void TIM_Cmd(TIM_TypeDef *tim, FunctionalState state);
 void TIM_UpdateDisableConfig(TIM_TypeDef *tim, FunctionalState state);
+#define DMA1_Channel7 (&fake_dma7)
 #define DMA1_Channel3_IRQn 1u
 #define DMA1_Channel4_IRQn 2u
 #define DMA1_Channel5_IRQn 3u
@@ -83,12 +89,12 @@ void TIM_UpdateDisableConfig(TIM_TypeDef *tim, FunctionalState state);
 #define DMA_Priority_Medium 16u
 #define GPIO_Mode_AF_PP 17u
 #define GPIO_Mode_IN_FLOATING 18u
-#define GPIO_Pin_10 19u
-#define GPIO_Pin_11 20u
-#define GPIO_Pin_6 21u
-#define GPIO_Pin_7 22u
-#define GPIO_Pin_8 23u
-#define GPIO_Pin_9 24u
+#define GPIO_Pin_10 (1u << 10)
+#define GPIO_Pin_11 (1u << 11)
+#define GPIO_Pin_6 (1u << 6)
+#define GPIO_Pin_7 (1u << 7)
+#define GPIO_Pin_8 (1u << 8)
+#define GPIO_Pin_9 (1u << 9)
 #define GPIO_Speed_50MHz 25u
 #define RCC_AHBPeriph_DMA1 26u
 #define RCC_APB1Periph_TIM4 27u
@@ -106,6 +112,7 @@ void TIM_UpdateDisableConfig(TIM_TypeDef *tim, FunctionalState state);
 #define TIM_OCPreload_Enable 39u
 #define TIM_OutputState_Enable 40u
 #define USART1_IRQn 41u
+#define USART2 (&fake_usart2)
 #define USART3_IRQn 42u
 #define USART_DMAReq_Rx 43u
 #define USART_DMAReq_Tx 44u
@@ -130,4 +137,42 @@ void TIM_SetCompare3(TIM_TypeDef *tim, uint16_t value);
 void TIM_OC4Init(TIM_TypeDef *tim, TIM_OCInitTypeDef *config);
 void TIM_OC4PreloadConfig(TIM_TypeDef *tim, uint16_t state);
 void TIM_SetCompare4(TIM_TypeDef *tim, uint16_t value);
+#define GPIO_Pin_0 (1u << 0)
+#define GPIO_Pin_1 (1u << 1)
+#define GPIO_Pin_2 (1u << 2)
+#define GPIO_Mode_IPU 60u
+#define RCC_APB1Periph_USART2 61u
+#define RCC_APB2Periph_AFIO 62u
+#define DMA_IT_TE 64u
+#define DMA1_Channel7_IRQn 65u
+#define DMA1_FLAG_TE5 (1u << 5)
+#define DMA1_FLAG_TC7 (1u << 6)
+#define DMA1_FLAG_TE7 (1u << 7)
+#define DMA1_FLAG_GL5 (DMA1_FLAG_HT5 | DMA1_FLAG_TC5 | DMA1_FLAG_TE5)
+#define DMA1_FLAG_GL7 (DMA1_FLAG_TC7 | DMA1_FLAG_TE7)
+#define USART_FLAG_IDLE (1u << 4)
+#define USART_FLAG_ORE (1u << 3)
+#define USART_FLAG_NE (1u << 2)
+#define USART_FLAG_FE (1u << 1)
+#define USART_FLAG_PE (1u << 0)
+#define USART_IT_ERR 66u
+#define EXTI_Line0 (1u << 0)
+#define EXTI_Line1 (1u << 1)
+#define EXTI_Line8 (1u << 8)
+#define GPIO_PortSourceGPIOA 0u
+#define GPIO_PinSource0 0u
+#define GPIO_PinSource1 1u
+#define GPIO_PinSource8 8u
+#define EXTI0_IRQn 67u
+#define EXTI1_IRQn 68u
+#define EXTI9_5_IRQn 69u
+#define EXTI_Trigger_Falling 0u
+#define EXTI_Trigger_Rising_Falling 1u
+#define EXTI_Mode_Interrupt 0u
+void DMA_StructInit(DMA_InitTypeDef *config);
+void GPIO_EXTILineConfig(uint8_t port, uint8_t pin);
+void EXTI_Init(EXTI_InitTypeDef *config);
+FlagStatus EXTI_GetITStatus(uint32_t line);
+void EXTI_ClearITPendingBit(uint32_t line);
+uint8_t GPIO_ReadInputDataBit(GPIO_TypeDef *gpio, uint16_t pin);
 #endif

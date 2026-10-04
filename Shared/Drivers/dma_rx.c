@@ -36,7 +36,7 @@ void DmaRx_OnDmaInterrupt(DmaRx *rx)
 /* Called with interrupts masked. Handle a TC that arrived before its ISR
  * ran, then sample CNDTR again. DMA remains enabled throughout.
  * A TC flag can count only one wrap: interrupt masking must stay shorter
- * than one full buffer time (22ms on USART3, 67ms on USART1).
+ * than one full buffer time (22ms at 115200, 67ms at 38400 for 256 bytes).
  */
 static uint32_t DmaRx_Produced(DmaRx *rx)
 {

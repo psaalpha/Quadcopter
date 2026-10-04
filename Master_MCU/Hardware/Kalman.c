@@ -1,5 +1,5 @@
 #include "stm32f10x.h"
-#include "kalman.h"
+#include "Kalman.h"
 #include "math.h"
 
 /* 卡尔曼滤波参数 */

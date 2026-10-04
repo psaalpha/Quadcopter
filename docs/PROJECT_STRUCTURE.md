@@ -58,7 +58,7 @@ App 表达系统策略，不应直接配置 GPIO、DMA 或 USART。
 | 模块 | 职责 |
 |---|---|
 | `board_config.h` | 周期、通道、超时和电机安全常量 |
-| `control_timers` | TIM1/TIM2/TIM3 时基与 NVIC 配置 |
+| `control_timers` | TIM2 1ms 时基与 NVIC 配置 |
 
 BSP 是板级资源的唯一解释层。引脚和定时器调整应先检查 `PINOUT.md`。
 
@@ -90,16 +90,19 @@ BSP 是板级资源的唯一解释层。引脚和定时器调整应先检查 `PI
 
 ## Slave MCU
 
-Slave 当前没有独立 App/BSP 目录，主要由：
+Slave 已拆分为：
 
-- `User/main.c`：20 Hz 数据采集、状态处理和协议发送；
-- `Hardware/BMP390*`：气压计适配；
-- `Hardware/OpticalFlow*`：光流串口接收；
-- `Hardware/QMC5883P*`：磁力计与校准；
-- `Hardware/AT7456E*`、`OLED*`：显示；
-- 舵机、电池和蜂鸣器的应用初始化。
+- `User/main.c`：初始化入口和主循环入口；
+- `App/slave_app`：输入事件、校准、采集、协议发布和分步显示；
+- `App/slave_scheduler`：50/200ms 周期任务及超时计数；
+- `BSP/slave_board`：时基、舵机、ADC、蜂鸣器、看门狗；
+- `Hardware/slave_link`：USART2 DMA 发送及缓冲区所有权；
+- `Hardware/OpticalFlow`：USART1 DMA 接收通知、主循环组帧；
+- 其余 `Hardware`：BMP390、QMC5883P、OLED 与 OSD 设备驱动；
+- `Shared/Scheduling`：纯 C 周期任务合并；
+- `Shared/Drivers`：依赖 STM32 SPL 的 DMA 环形接收与毫秒计时辅助。
 
-后续重构从控时，应沿用 Master 已建立的 App/BSP/Hardware 边界，但不要为了目录统一而一次性大规模搬动稳定代码。
+详见 [当前运行调度](RUNTIME_SCHEDULING.md)。
 
 ## 活跃代码与遗留代码
 

@@ -341,7 +341,7 @@
               <MiscControls></MiscControls>
               <Define>USE_STDPERIPH_DRIVER</Define>
               <Undefine></Undefine>
-              <IncludePath>..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;.\User;..\Platform\STM32F1\System;.\Hardware;..\Shared\Protocol;.\App;.\BSP</IncludePath>
+              <IncludePath>..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;.\User;..\Platform\STM32F1\System;.\Hardware;..\Shared\Protocol;.\App;.\BSP;..\Shared\Drivers;..\Shared\Scheduling</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -775,16 +775,6 @@
               <FileType>5</FileType>
               <FilePath>.\Hardware\SlaveMCU.h</FilePath>
             </File>
-            <File>
-              <FileName>dma_rx.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\Hardware\dma_rx.c</FilePath>
-            </File>
-            <File>
-              <FileName>dma_rx.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\dma_rx.h</FilePath>
-            </File>
           </Files>
         </Group>
         <Group>
@@ -879,6 +869,41 @@
               <FileName>hubu.h</FileName>
               <FileType>5</FileType>
               <FilePath>.\User\hubu.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Shared Services</GroupName>
+          <Files>
+            <File>
+              <FileName>dma_rx.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Drivers\dma_rx.c</FilePath>
+            </File>
+            <File>
+              <FileName>dma_rx.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Drivers\dma_rx.h</FilePath>
+            </File>
+            <File>
+              <FileName>millisecond_clock.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Drivers\millisecond_clock.c</FilePath>
+            </File>
+            <File>
+              <FileName>millisecond_clock.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Drivers\millisecond_clock.h</FilePath>
+            </File>
+            <File>
+              <FileName>periodic_tasks.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Scheduling\periodic_tasks.c</FilePath>
+            </File>
+            <File>
+              <FileName>periodic_tasks.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Scheduling\periodic_tasks.h</FilePath>
             </File>
           </Files>
         </Group>

@@ -2,6 +2,8 @@
 
 ## 1. 文档目的
 
+当前分支运行模型已进一步整理为 [统一毫秒调度与从机 DMA](RUNTIME_SCHEDULING.md)。下文四个提交的说明保留架构演进历史。
+
 本文总结 `develop` 分支以下 4 个工程化提交带来的架构演进：
 
 | Commit | 主题 | 架构层面目标 |
@@ -152,7 +154,7 @@ flowchart TD
 核心依赖规则：
 
 1. `Platform` 不依赖 Master 或 Slave；
-2. `Shared` 不依赖 STM32 寄存器和具体板卡；
+2. `Shared/Protocol`、`Shared/Scheduling` 是纯 C；`Shared/Drivers` 依赖 STM32 平台，不依赖具体应用策略；
 3. `App` 负责策略，不直接拥有具体引脚；
 4. `BSP` 负责板级时钟、定时器和资源映射；
 5. `Hardware` 负责设备驱动和控制算法；

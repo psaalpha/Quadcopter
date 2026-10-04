@@ -17,10 +17,10 @@
 | PC13 | LED1 | 状态指示 |
 | PA0 | LED2 | CH4 指示 |
 | PA5 | LED3 | CH5 指示 |
-| TIM1 | 5 ms RC 服务时基 | BSP |
-| TIM2 | 2 ms IMU/内环时基 | BSP |
-| TIM3 | 10 ms角度外环时基 | BSP |
-| TIM4 | 50Hz 四路 ESC PWM；500Hz内环写CCR预装载，20ms中断发布遥测任务 | Motor PWM |
+| TIM1 | 不再用于周期调度 | BSP |
+| TIM2 | 1ms 统一时基，发布 2/5/10/100ms 任务 | BSP |
+| TIM3 | 不再用于周期调度 | BSP |
+| TIM4 | 50Hz 四路 ESC PWM；500Hz内环写CCR预装载，不启用 PWM 更新中断 | Motor PWM |
 | DMA1_CH3 | USART3 RX | SlaveMCU |
 | DMA1_CH4/CH5 | USART1 TX/RX | BlueSerial |
 | DMA1_CH6 | USART2 RX | CRSF |
@@ -32,18 +32,22 @@
 | 引脚/资源 | 功能 | 归属 |
 |---|---|---|
 | PA0 | 外部按键/归零 EXTI | exti |
-| PA1 | 舵机档位输入 | User |
+| PA1 | EXTI1 双边沿舵机档位通知 | exti |
 | PA2 | USART2 TX，发送给 Master | Inter-MCU |
 | PA3 | 低电平有效蜂鸣器 | Battery alarm |
 | PA4–PA7 | SPI1，BMP390 | Barometer |
-| PA8 | 磁力计校准触发 | User |
-| PA9 / PA10 | USART1 TX/RX，光流 115200 | OpticalFlow |
+| PA8 | EXTI8 双边沿，记录校准脉冲 | exti |
+| PA9 / PA10 | 保留 TX 引脚映射；USART1 RX 光流 115200，DMA/IDLE/HT/TC | OpticalFlow |
 | PB0 / TIM3_CH3 | 舵机 PWM | Servo |
 | PB1 / ADC1_IN9 | 电池电压 | Battery |
 | PB8 / PB9 | 软件 I2C，OLED | Display |
 | PB10 / PB11 | 软件 I2C，QMC5883P | Magnetometer |
 | PB12–PB15 | SPI2，AT7456E OSD | OSD |
-| TIM2 | 50 ms 传感器任务时基 | User |
-| TIM3 | 20 ms 舵机 PWM | Servo |
+| TIM2 | 1ms 时基，发布 50ms 传感器与 200ms 显示任务 | BSP |
+| TIM3 | 20 ms 舵机 PWM，预装载 | Servo |
+| DMA1_CH5 | USART1 光流 RX，256 字节循环缓冲 | OpticalFlow |
+| DMA1_CH7 | USART2 主从 TX，41 字节单缓冲 | SlaveLink |
 
-从控注释中的 PA2 “上位机”实际用于连接主控 USART3 RX；硬件接线必须共地。
+PA2 用于连接主控 USART3 RX；PA3 是蜂鸣器，不配置为串口 RX。硬件接线必须共地。
+
+周期和时钟详见 [运行调度](RUNTIME_SCHEDULING.md)。

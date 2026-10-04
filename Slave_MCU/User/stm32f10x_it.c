@@ -143,30 +143,13 @@ void SysTick_Handler(void)
 /*  file (startup_stm32f10x_xx.s).                                            */
 /******************************************************************************/
 
-/**
-  * @brief  This function handles TIM2 global interrupt request.
-  *         每 50ms 触发一次，通知 main 读取气压计数据
-  * @param  None
-  * @retval None
-  */
-extern volatile uint8_t timer_100ms_flag;
-extern volatile uint32_t system_time_ms;
-
+#include "slave_scheduler.h"
+#include "millisecond_clock.h"
+/* TIM2 publishes periodic tasks; no sensor or display work in the ISR. */
 void TIM2_IRQHandler(void)
 {
-    if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
-    {
+    if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET) {
         TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
-        
-        /* 置位定时标志，通知主循环读取传感器。 */
-        timer_100ms_flag = 1;
-        system_time_ms += 50u;
+        SlaveScheduler_TickFromIsr(MillisecondClock_Elapsed());
     }
 }
-
-/**
-  * @}
-  */ 
-
-
-/******************* (C) COPYRIGHT 2011 STMicroelectronics *****END OF FILE****/
