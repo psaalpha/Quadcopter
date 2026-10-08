@@ -8,37 +8,37 @@
 CRSF 遥控帧 --CRC8/DMA--> 主控 RC 映射、飞行安全状态
 MPU6050 --软件 I2C--> 500Hz 姿态/角速度 --> 100Hz 角度外环
 从控 QMC5883P、BMP390、光流 --> 41 字节 CRC16 协议 --> 主控新帧处理
-                               --> Yaw 磁力计校正 / 高度与光流辅助环
+                               --> estimated_yaw_deg 磁力计校正 / 高度与光流辅助环
 目标角速度 --> 500Hz 角速度内环 --> 四电机混控 --> 50Hz PWM
 ```
 
-主控的 2/5/10/20ms 任务由定时器中断发布、主循环取走执行。2ms 内环完成混控后写四路 CCR 预装载；PWM波形仍为50Hz，20ms任务只保留遥测服务。蓝牙与从控串口中断只通知，组帧与协议解析均在主循环。中断不是完整任务，更不是 RTOS 线程。先读 [主控入口](../Master_MCU/User/main.c)、[调度器](../Master_MCU/App/app_scheduler.c) 和 [板级周期/通道配置](../Master_MCU/BSP/board_config.h)。
+主控的 2/5/10/20ms 任务由定时器中断发布、主循环取走执行。2ms 内环完成混控后写四路 CCR 预装载；PWM波形仍为50Hz，20ms任务只保留遥测服务。蓝牙与从控串口中断只通知，组帧与协议解析均在主循环。中断不是完整任务，更不是 RTOS 线程。先读 [主控入口](../Master_MCU/Core/main.c)、[调度器](../Master_MCU/App/app_scheduler.c) 和 [板级周期/通道配置](../Master_MCU/BSP/board_config.h)。
 
 ## 按简历关键词阅读
 
 | 简历关键词 | 先读代码 | 应当能讲清楚 |
 |---|---|---|
-| 双 MCU 分工、SPL 外设 | [主控入口](../Master_MCU/User/main.c)、[从控入口](../Slave_MCU/User/main.c) | 哪颗板读哪些传感器，哪颗板输出电机 PWM |
-| CRSF、DMA、CRC8、失联保护 | [CRSF 驱动](../Master_MCU/Hardware/crsf.c)、[安全状态机](../Master_MCU/App/flight_safety.c) | 有效帧如何刷新链路，300ms 超时与低油门恢复 |
-| 姿态解算和串级 PID | [姿态解算](../Master_MCU/User/hubu.c)、[PID](../Master_MCU/Hardware/Pid.c) | 500Hz 内环、100Hz 外环各输入/输出什么 |
-| 从控 Yaw 输入 | [QMC 驱动](../Slave_MCU/Hardware/QMC5883P.c)、[从控打包](../Slave_MCU/User/main.c)、[主控接收](../Master_MCU/Hardware/SlaveMCU.c) | 只用新磁力计样本，协议 CRC16 通过后才修正 Yaw |
-| 高度/光流辅助 PID | [光流解析](../Slave_MCU/Hardware/OpticalFlow.c)、[主控入口](../Master_MCU/User/main.c)、[PID](../Master_MCU/Hardware/Pid.c) | CH6 何时进入/退出，目标如何捕获，输出怎样叠加到油门和姿态 |
+| 双 MCU 分工、SPL 外设 | [主控入口](../Master_MCU/Core/main.c)、[从控入口](../Slave_MCU/Core/main.c) | 哪颗板读哪些传感器，哪颗板输出电机 PWM |
+| CRSF、DMA、CRC8、失联保护 | [CRSF 驱动](../Master_MCU/Drivers/Communication/crsf.c)、[安全状态机](../Master_MCU/App/flight_safety.c) | 有效帧如何刷新链路，300ms 超时与低油门恢复 |
+| 姿态解算和串级 PID | [姿态解算](../Master_MCU/Control/attitude_estimator.c)、[PID](../Master_MCU/Control/pid_controller.c) | 500Hz 内环、100Hz 外环各输入/输出什么 |
+| 从控 estimated_yaw_deg 输入 | [QMC 驱动](../Slave_MCU/Drivers/Sensors/qmc5883p.c)、[从控打包](../Slave_MCU/Core/main.c)、[主控接收](../Master_MCU/Drivers/Communication/slave_link.c) | 只用新磁力计样本，协议 CRC16 通过后才修正 estimated_yaw_deg |
+| 高度/光流辅助 PID | [光流解析](../Slave_MCU/Drivers/Sensors/optical_flow.c)、[主控入口](../Master_MCU/Core/main.c)、[PID](../Master_MCU/Control/pid_controller.c) | CH6 何时进入/退出，目标如何捕获，输出怎样叠加到油门和姿态 |
 | 工程化、电脑端验证 | [共享协议](../Shared/Protocol/inter_mcu_protocol.c)、[主机测试](../tests/host/CMakeLists.txt) | 版本化定长协议、CRC16、纯 C 模块测试与固件编译的边界 |
 
-推荐顺序：先读主控 `main()` 和 2/5/10/20ms 调度；再顺着从控“采集→打包→主控解包”；然后看 Yaw、光流/高度 PID、混控；最后读失联状态机和测试。每读完一段，自己画“输入→有效性条件→控制量→输出→失效退回”的小图。
+推荐顺序：先读主控 `main()` 和 2/5/10/20ms 调度；再顺着从控“采集→打包→主控解包”；然后看 estimated_yaw_deg、光流/高度 PID、混控；最后读失联状态机和测试。每读完一段，自己画“输入→有效性条件→控制量→输出→失效退回”的小图。
 
-## Yaw：摇杆命令与磁力计航向是两条不同的线
+## estimated_yaw_deg：摇杆命令与磁力计航向是两条不同的线
 
 1. 遥控 CH3 映射到约 `±90°/s` 的目标转向速度。在 100Hz 外环中按 `10ms` 积分为目标航向；摇杆回中后保持最后的目标，不是立刻把目标清零。
 2. MPU6050 Z 轴陀螺仪在 500Hz 姿态任务中积分，提供连续的短时航向。该部分容易漂移。
 3. 从控 QMC5883P 读取到**新样本**才设置 `MAG_VALID`；41 字节主从包经 CRC16 校验后，主控按 0/360° 最短角误差融合航向。首次有效样本会同时同步目标角，避免突然大幅转向。
-4. Yaw 外环 P 将角度误差变成目标角速度；500Hz 内环 PID 将目标角速度与陀螺仪角速度比较，混入四路电机。
+4. estimated_yaw_deg 外环 P 将角度误差变成目标角速度；500Hz 内环 PID 将目标角速度与陀螺仪角速度比较，混入四路电机。
 
 注意：磁力计硬铁校准已有代码，但姿态倾斜补偿、电机电磁干扰识别和实际旋转方向仍需实机验证。不要把“代码接通”说成“已稳定定向飞行”。
 
 ## 高度/光流辅助：代码路径已接通，参数还没调
 
-CH6 高电平是辅助模式请求，不是自动起飞开关。只有安全状态为 `ACTIVE`、油门至少 10%、收到有效的气压和光流新帧、光流质量与测距进入配置范围时，主控才进入辅助模式。进入瞬间捕获当前气压相对高度与光流 X/Y 原始积分值作目标；后续约 50ms 一次，用主控实测帧间隔计算高度和位置 PID。高度输出叠加油门；光流 X/Y 输出分别叠加 Roll/Pitch 目标角。CH6 关闭、油门降低、数据失效或超过 200ms 不来新帧时，积分清零并退回手动目标。
+CH6 高电平是辅助模式请求，不是自动起飞开关。只有安全状态为 `ACTIVE`、油门至少 10%、收到有效的气压和光流新帧、光流质量与测距进入配置范围时，主控才进入辅助模式。进入瞬间捕获当前气压相对高度与光流 X/Y 原始积分值作目标；后续约 50ms 一次，用主控实测帧间隔计算高度和位置 PID。高度输出叠加油门；光流 X/Y 输出分别叠加 estimated_roll_deg/estimated_pitch_deg 目标角。CH6 关闭、油门降低、数据失效或超过 200ms 不来新帧时，积分清零并退回手动目标。
 
 这个分支故意把高度/光流 PID 的默认 Kp/Ki/Kd 设为 **0**：算法、门控、接口和退回路径可读可测，但未标定的控制量不会直接驱动电机。光流 X/Y 目前是传感器原始积分量，不是米制坐标；机体安装方向、正负号、比例系数、距离与质量阈值均须无桨台架确认，再逐项低增益调参。因此简历可说“设计并接入高度/光流辅助控制链路”，不能据此说“已实现实飞定点悬停”。
 
@@ -46,8 +46,8 @@ CH6 高电平是辅助模式请求，不是自动起飞开关。只有安全状�
 
 | 层次 | 当前可说 | 不应越界说 |
 |---|---|---|
-| 已在代码实现 | SPL 双 MCU 分工、CRSF 与主从 CRC、裸机周期调度、安全状态机、Yaw 串级环与从控磁力计输入、CH6 高度/光流辅助链路、主机单元测试 | 这些全部通过了飞行验证 |
-| 需要硬件验证/调参 | 电机混控方向、Yaw 符号、传感器安装、光流轴向/尺度、辅助环增益、实际周期与抖动 | 已达到某个精度或可可靠悬停 |
+| 已在代码实现 | SPL 双 MCU 分工、CRSF 与主从 CRC、裸机周期调度、安全状态机、estimated_yaw_deg 串级环与从控磁力计输入、CH6 高度/光流辅助链路、主机单元测试 | 这些全部通过了飞行验证 |
+| 需要硬件验证/调参 | 电机混控方向、estimated_yaw_deg 符号、传感器安装、光流轴向/尺度、辅助环增益、实际周期与抖动 | 已达到某个精度或可可靠悬停 |
 | 后续可学习 | FreeRTOS 任务/队列/优先级规划；Linux 上用 GCC、CMake、CTest 构建和测试 | 飞控已经运行 FreeRTOS 或嵌入式 Linux |
 
 FreeRTOS 可以按“IMU 高优先级、角度控制次高、RC/协议与遥测较低，数据用队列或双缓冲传递”的思路学习；迁移前要量测执行时间、堆栈和抢占影响。Linux 仅作为开发主机环境，绝非 STM32F103 上的运行系统。
@@ -57,8 +57,9 @@ FreeRTOS 可以按“IMU 高优先级、角度控制次高、RC/协议与遥测�
 - 先看 [安全说明](SAFETY.md)；两颗 MCU 必须配套烧录，任何电机方向和控制正负号验证都先拆桨。
 - 画出 CRSF 有效帧、低油门解锁、失联、恢复锁的状态转移。
 - 从从控 `pkt.flags` 找到主控每个 `status_flags` 的检查，解释为什么“有旧数据”不等于“有有效新帧”。
-- 手算 Yaw 目标为 2°、测量为 358° 时的最短角误差；再手算 CH3 从中位偏移 100us 时，10ms 目标增加多少度。
+- 手算 estimated_yaw_deg 目标为 2°、测量为 358° 时的最短角误差；再手算 CH3 从中位偏移 100us 时，10ms 目标增加多少度。
 - 比较高度 PID 的 `cm→油门百分比` 与光流 PID 的 `原始计数→目标角度`，说出为何参数不能直接照搬。
 - 电脑端运行 `python tools/validate_project.py`、`cmake -S . -B build/host -G "MinGW Makefiles"`、`cmake --build build/host`、`ctest --test-dir build/host --output-on-failure`；再使用 `tools/build_firmware.ps1` 编译双固件。这些只能证明静态结构与代码可构建，不能代替无桨台架。
 
-待补的实机证据：示波器核对 50Hz PWM 与 2/10/20ms 周期；串口日志/调试器确认包序号、CRC 拒包、传感器失效退回；手持机体检查 Roll/Pitch/Yaw 响应方向；记录光流质量与原始量随位移的变化。光流串口帧最后一字节的算法尚未从传感器手册确认，目前仅检查帧格式、有效标记和超时，不应声称完整帧校验。
+待补的实机证据：示波器核对 50Hz PWM 与 2/10/20ms 周期；串口日志/调试器确认包序号、CRC 拒包、传感器失效退回；手持机体检查 estimated_roll_deg/estimated_pitch_deg/estimated_yaw_deg 响应方向；记录光流质量与原始量随位移的变化。光流串口帧最后一字节的算法尚未从传感器手册确认，目前仅检查帧格式、有效标记和超时，不应声称完整帧校验。
+

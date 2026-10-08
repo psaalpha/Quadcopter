@@ -1,10 +1,7 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<?xml version='1.0' encoding='utf-8'?>
 <Project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="project_projx.xsd">
-
   <SchemaVersion>2.1</SchemaVersion>
-
   <Header>### uVision Project, (C) Keil Software</Header>
-
   <Targets>
     <Target>
       <TargetName>Target 1</TargetName>
@@ -19,28 +16,28 @@
           <PackID>Keil.STM32F1xx_DFP.2.4.1</PackID>
           <PackURL>https://www.keil.com/pack/</PackURL>
           <Cpu>IRAM(0x20000000,0x5000) IROM(0x08000000,0xFC00) CPUTYPE("Cortex-M3") CLOCK(12000000) ELITTLE</Cpu>
-          <FlashUtilSpec></FlashUtilSpec>
-          <StartupFile></StartupFile>
+          <FlashUtilSpec />
+          <StartupFile />
           <FlashDriverDll>UL2CM3(-S0 -C0 -P0 -FD20000000 -FC1000 -FN1 -FF0STM32F10x_128 -FS08000000 -FL020000 -FP0($$Device:STM32F103C8$Flash\STM32F10x_128.FLM))</FlashDriverDll>
           <DeviceId>0</DeviceId>
           <RegisterFile>$$Device:STM32F103C8$Device\Include\stm32f10x.h</RegisterFile>
-          <MemoryEnv></MemoryEnv>
-          <Cmp></Cmp>
-          <Asm></Asm>
-          <Linker></Linker>
-          <OHString></OHString>
-          <InfinionOptionDll></InfinionOptionDll>
-          <SLE66CMisc></SLE66CMisc>
-          <SLE66AMisc></SLE66AMisc>
-          <SLE66LinkerMisc></SLE66LinkerMisc>
+          <MemoryEnv />
+          <Cmp />
+          <Asm />
+          <Linker />
+          <OHString />
+          <InfinionOptionDll />
+          <SLE66CMisc />
+          <SLE66AMisc />
+          <SLE66LinkerMisc />
           <SFDFile>$$Device:STM32F103C8$SVD\STM32F103xx.svd</SFDFile>
           <bCustSvd>0</bCustSvd>
           <UseEnv>0</UseEnv>
-          <BinPath></BinPath>
-          <IncludePath></IncludePath>
-          <LibPath></LibPath>
-          <RegisterFilePath></RegisterFilePath>
-          <DBRegisterFilePath></DBRegisterFilePath>
+          <BinPath />
+          <IncludePath />
+          <LibPath />
+          <RegisterFilePath />
+          <DBRegisterFilePath />
           <TargetStatus>
             <Error>0</Error>
             <ExitCodeStop>0</ExitCodeStop>
@@ -62,8 +59,8 @@
           <BeforeCompile>
             <RunUserProg1>0</RunUserProg1>
             <RunUserProg2>0</RunUserProg2>
-            <UserProg1Name></UserProg1Name>
-            <UserProg2Name></UserProg2Name>
+            <UserProg1Name />
+            <UserProg2Name />
             <UserProg1Dos16Mode>0</UserProg1Dos16Mode>
             <UserProg2Dos16Mode>0</UserProg2Dos16Mode>
             <nStopU1X>0</nStopU1X>
@@ -72,8 +69,8 @@
           <BeforeMake>
             <RunUserProg1>0</RunUserProg1>
             <RunUserProg2>0</RunUserProg2>
-            <UserProg1Name></UserProg1Name>
-            <UserProg2Name></UserProg2Name>
+            <UserProg1Name />
+            <UserProg2Name />
             <UserProg1Dos16Mode>0</UserProg1Dos16Mode>
             <UserProg2Dos16Mode>0</UserProg2Dos16Mode>
             <nStopB1X>0</nStopB1X>
@@ -82,15 +79,15 @@
           <AfterMake>
             <RunUserProg1>0</RunUserProg1>
             <RunUserProg2>0</RunUserProg2>
-            <UserProg1Name></UserProg1Name>
-            <UserProg2Name></UserProg2Name>
+            <UserProg1Name />
+            <UserProg2Name />
             <UserProg1Dos16Mode>0</UserProg1Dos16Mode>
             <UserProg2Dos16Mode>0</UserProg2Dos16Mode>
             <nStopA1X>0</nStopA1X>
             <nStopA2X>0</nStopA2X>
           </AfterMake>
           <SelectedForBatchBuild>0</SelectedForBatchBuild>
-          <SVCSIdString></SVCSIdString>
+          <SVCSIdString />
         </TargetCommonOption>
         <CommonProperty>
           <UseCPPCompiler>0</UseCPPCompiler>
@@ -104,8 +101,8 @@
           <AssembleAssemblyFile>0</AssembleAssemblyFile>
           <PublicsOnly>0</PublicsOnly>
           <StopOnExitCode>3</StopOnExitCode>
-          <CustomArgument></CustomArgument>
-          <IncludeLibraryModules></IncludeLibraryModules>
+          <CustomArgument />
+          <IncludeLibraryModules />
           <ComprImg>1</ComprImg>
         </CommonProperty>
         <DllOption>
@@ -114,7 +111,7 @@
           <SimDlgDll>DCM.DLL</SimDlgDll>
           <SimDlgDllArguments>-pCM3</SimDlgDllArguments>
           <TargetDllName>SARMCM3.DLL</TargetDllName>
-          <TargetDllArguments></TargetDllArguments>
+          <TargetDllArguments />
           <TargetDlgDll>TCM.DLL</TargetDlgDll>
           <TargetDlgDllArguments>-pCM3</TargetDlgDllArguments>
         </DllOption>
@@ -138,11 +135,11 @@
           </Flash1>
           <bUseTDR>1</bUseTDR>
           <Flash2>BIN\UL2CM3.DLL</Flash2>
-          <Flash3></Flash3>
-          <Flash4></Flash4>
-          <pFcarmOut></pFcarmOut>
-          <pFcarmGrp></pFcarmGrp>
-          <pFcArmRoot></pFcArmRoot>
+          <Flash3 />
+          <Flash4 />
+          <pFcarmOut />
+          <pFcarmGrp />
+          <pFcArmRoot />
           <FcArmLst>0</FcArmLst>
         </Utilities>
         <TargetArmAds>
@@ -175,7 +172,7 @@
             <RvctClst>0</RvctClst>
             <GenPPlst>0</GenPPlst>
             <AdsCpuType>"Cortex-M3"</AdsCpuType>
-            <RvctDeviceName></RvctDeviceName>
+            <RvctDeviceName />
             <mOS>0</mOS>
             <uocRom>0</uocRom>
             <uocRam>0</uocRam>
@@ -310,7 +307,7 @@
                 <Size>0x0</Size>
               </OCR_RVCT10>
             </OnChipMemories>
-            <RvctStartVector></RvctStartVector>
+            <RvctStartVector />
           </ArmAdsMisc>
           <Cads>
             <interw>1</interw>
@@ -337,10 +334,10 @@
             <v6WtE>0</v6WtE>
             <v6Rtti>0</v6Rtti>
             <VariousControls>
-              <MiscControls></MiscControls>
+              <MiscControls />
               <Define>USE_STDPERIPH_DRIVER</Define>
-              <Undefine></Undefine>
-              <IncludePath>..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;.\User;..\Platform\STM32F1\System;.\Hardware;.\App;.\BSP;..\Shared\Protocol;..\Shared\Drivers;..\Shared\Scheduling</IncludePath>
+              <Undefine />
+              <IncludePath>.\Core;.\App;.\BSP;.\Drivers\Bus;.\Drivers\Communication;.\Drivers\Display;.\Drivers\Sensors;.\Drivers\Sensors\BMP390;..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;..\Platform\STM32F1\System;..\Shared\Protocol;..\Shared\Drivers;..\Shared\Scheduling</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -355,10 +352,10 @@
             <useXO>0</useXO>
             <ClangAsOpt>4</ClangAsOpt>
             <VariousControls>
-              <MiscControls></MiscControls>
-              <Define></Define>
-              <Undefine></Undefine>
-              <IncludePath></IncludePath>
+              <MiscControls />
+              <Define />
+              <Undefine />
+              <IncludePath />
             </VariousControls>
           </Aads>
           <LDads>
@@ -370,19 +367,19 @@
             <useFile>0</useFile>
             <TextAddressRange>0x08000000</TextAddressRange>
             <DataAddressRange>0x20000000</DataAddressRange>
-            <pXoBase></pXoBase>
-            <ScatterFile></ScatterFile>
-            <IncludeLibs></IncludeLibs>
-            <IncludeLibsPath></IncludeLibsPath>
-            <Misc></Misc>
-            <LinkerInputFile></LinkerInputFile>
-            <DisabledWarnings></DisabledWarnings>
+            <pXoBase />
+            <ScatterFile />
+            <IncludeLibs />
+            <IncludeLibsPath />
+            <Misc />
+            <LinkerInputFile />
+            <DisabledWarnings />
           </LDads>
         </TargetArmAds>
       </TargetOption>
       <Groups>
         <Group>
-          <GroupName>Start</GroupName>
+          <GroupName>Platform / CMSIS</GroupName>
           <Files>
             <File>
               <FileName>startup_stm32f10x_md.s</FileName>
@@ -417,7 +414,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>Library</GroupName>
+          <GroupName>Platform / SPL</GroupName>
           <Files>
             <File>
               <FileName>misc.c</FileName>
@@ -652,7 +649,7 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>System</GroupName>
+          <GroupName>Platform / System</GroupName>
           <Files>
             <File>
               <FileName>Delay.c</FileName>
@@ -667,102 +664,132 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>Hardware</GroupName>
+          <GroupName>Drivers / Display</GroupName>
           <Files>
             <File>
-              <FileName>OLED.c</FileName>
+              <FileName>oled.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\Hardware\OLED.c</FilePath>
+              <FilePath>Drivers\Display\oled.c</FilePath>
             </File>
             <File>
-              <FileName>OLED.h</FileName>
+              <FileName>oled.h</FileName>
               <FileType>5</FileType>
-              <FilePath>.\Hardware\OLED.h</FilePath>
+              <FilePath>Drivers\Display\oled.h</FilePath>
             </File>
             <File>
-              <FileName>OLED_Font.h</FileName>
+              <FileName>oled_font.h</FileName>
               <FileType>5</FileType>
-              <FilePath>.\Hardware\OLED_Font.h</FilePath>
+              <FilePath>Drivers\Display\oled_font.h</FilePath>
             </File>
             <File>
-              <FileName>AT7456E.c</FileName>
+              <FileName>at7456e.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\Hardware\AT7456E.c</FilePath>
+              <FilePath>Drivers\Display\at7456e.c</FilePath>
             </File>
             <File>
-              <FileName>AT7456E.h</FileName>
+              <FileName>at7456e.h</FileName>
               <FileType>5</FileType>
-              <FilePath>.\Hardware\AT7456E.h</FilePath>
-            </File>
-            <File>
-              <FileName>bmp3.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\Hardware\bmp3.c</FilePath>
-            </File>
-            <File>
-              <FileName>bmp3.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\bmp3.h</FilePath>
-            </File>
-            <File>
-              <FileName>bmp3_defs.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\bmp3_defs.h</FilePath>
-            </File>
-            <File>
-              <FileName>BMP390.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\Hardware\BMP390.c</FilePath>
-            </File>
-            <File>
-              <FileName>BMP390.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\BMP390.h</FilePath>
-            </File>
-            <File>
-              <FileName>exti.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\Hardware\exti.c</FilePath>
-            </File>
-            <File>
-              <FileName>exti.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\exti.h</FilePath>
-            </File>
-            <File>
-              <FileName>MySPI.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\Hardware\MySPI.c</FilePath>
-            </File>
-            <File>
-              <FileName>MySPI.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\MySPI.h</FilePath>
-            </File>
-            <File>
-              <FileName>OpticalFlow.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\Hardware\OpticalFlow.c</FilePath>
-            </File>
-            <File>
-              <FileName>OpticalFlow.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\OpticalFlow.h</FilePath>
-            </File>
-            <File>
-              <FileName>QMC5883P.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\Hardware\QMC5883P.c</FilePath>
-            </File>
-            <File>
-              <FileName>QMC5883P.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\QMC5883P.h</FilePath>
+              <FilePath>Drivers\Display\at7456e.h</FilePath>
             </File>
           </Files>
         </Group>
         <Group>
-          <GroupName>Shared Protocol</GroupName>
+          <GroupName>Drivers / Sensors / BMP390</GroupName>
+          <Files>
+            <File>
+              <FileName>bmp3.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>Drivers\Sensors\BMP390\bmp3.c</FilePath>
+            </File>
+            <File>
+              <FileName>bmp3.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>Drivers\Sensors\BMP390\bmp3.h</FilePath>
+            </File>
+            <File>
+              <FileName>bmp3_defs.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>Drivers\Sensors\BMP390\bmp3_defs.h</FilePath>
+            </File>
+            <File>
+              <FileName>bmp390.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>Drivers\Sensors\BMP390\bmp390.c</FilePath>
+            </File>
+            <File>
+              <FileName>bmp390.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>Drivers\Sensors\BMP390\bmp390.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>BSP</GroupName>
+          <Files>
+            <File>
+              <FileName>board_inputs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>BSP\board_inputs.c</FilePath>
+            </File>
+            <File>
+              <FileName>board_inputs.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>BSP\board_inputs.h</FilePath>
+            </File>
+            <File>
+              <FileName>slave_board.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>BSP\slave_board.c</FilePath>
+            </File>
+            <File>
+              <FileName>slave_board.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>BSP\slave_board.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Drivers / Bus</GroupName>
+          <Files>
+            <File>
+              <FileName>soft_spi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>Drivers\Bus\soft_spi.c</FilePath>
+            </File>
+            <File>
+              <FileName>soft_spi.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>Drivers\Bus\soft_spi.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Drivers / Sensors</GroupName>
+          <Files>
+            <File>
+              <FileName>optical_flow.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>Drivers\Sensors\optical_flow.c</FilePath>
+            </File>
+            <File>
+              <FileName>optical_flow.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>Drivers\Sensors\optical_flow.h</FilePath>
+            </File>
+            <File>
+              <FileName>qmc5883p.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>Drivers\Sensors\qmc5883p.c</FilePath>
+            </File>
+            <File>
+              <FileName>qmc5883p.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>Drivers\Sensors\qmc5883p.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Shared / Protocol</GroupName>
           <Files>
             <File>
               <FileName>inter_mcu_protocol.c</FileName>
@@ -777,32 +804,32 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>User</GroupName>
+          <GroupName>Core</GroupName>
           <Files>
             <File>
               <FileName>main.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\User\main.c</FilePath>
+              <FilePath>Core\main.c</FilePath>
             </File>
             <File>
               <FileName>stm32f10x_conf.h</FileName>
               <FileType>5</FileType>
-              <FilePath>.\User\stm32f10x_conf.h</FilePath>
+              <FilePath>Core\stm32f10x_conf.h</FilePath>
             </File>
             <File>
               <FileName>stm32f10x_it.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\User\stm32f10x_it.c</FilePath>
+              <FilePath>Core\stm32f10x_it.c</FilePath>
             </File>
             <File>
               <FileName>stm32f10x_it.h</FileName>
               <FileType>5</FileType>
-              <FilePath>.\User\stm32f10x_it.h</FilePath>
+              <FilePath>Core\stm32f10x_it.h</FilePath>
             </File>
           </Files>
         </Group>
         <Group>
-          <GroupName>Shared Services</GroupName>
+          <GroupName>Shared / Drivers</GroupName>
           <Files>
             <File>
               <FileName>dma_rx.c</FileName>
@@ -824,6 +851,11 @@
               <FileType>5</FileType>
               <FilePath>..\Shared\Drivers\millisecond_clock.h</FilePath>
             </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Shared / Scheduling</GroupName>
+          <Files>
             <File>
               <FileName>periodic_tasks.c</FileName>
               <FileType>1</FileType>
@@ -837,68 +869,51 @@
           </Files>
         </Group>
         <Group>
-          <GroupName>Application</GroupName>
+          <GroupName>App</GroupName>
           <Files>
             <File>
               <FileName>slave_app.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\App\slave_app.c</FilePath>
+              <FilePath>App\slave_app.c</FilePath>
             </File>
             <File>
               <FileName>slave_app.h</FileName>
               <FileType>5</FileType>
-              <FilePath>.\App\slave_app.h</FilePath>
+              <FilePath>App\slave_app.h</FilePath>
             </File>
             <File>
               <FileName>slave_scheduler.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\App\slave_scheduler.c</FilePath>
+              <FilePath>App\slave_scheduler.c</FilePath>
             </File>
             <File>
               <FileName>slave_scheduler.h</FileName>
               <FileType>5</FileType>
-              <FilePath>.\App\slave_scheduler.h</FilePath>
+              <FilePath>App\slave_scheduler.h</FilePath>
             </File>
           </Files>
         </Group>
         <Group>
-          <GroupName>Board Support</GroupName>
+          <GroupName>Drivers / Communication</GroupName>
           <Files>
             <File>
-              <FileName>slave_board.c</FileName>
+              <FileName>master_link.c</FileName>
               <FileType>1</FileType>
-              <FilePath>.\BSP\slave_board.c</FilePath>
+              <FilePath>Drivers\Communication\master_link.c</FilePath>
             </File>
             <File>
-              <FileName>slave_board.h</FileName>
+              <FileName>master_link.h</FileName>
               <FileType>5</FileType>
-              <FilePath>.\BSP\slave_board.h</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>Master Link</GroupName>
-          <Files>
-            <File>
-              <FileName>slave_link.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\Hardware\slave_link.c</FilePath>
-            </File>
-            <File>
-              <FileName>slave_link.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\Hardware\slave_link.h</FilePath>
+              <FilePath>Drivers\Communication\master_link.h</FilePath>
             </File>
           </Files>
         </Group>
       </Groups>
     </Target>
   </Targets>
-
   <RTE>
-    <apis/>
-    <components/>
-    <files/>
+    <apis />
+    <components />
+    <files />
   </RTE>
-
 </Project>

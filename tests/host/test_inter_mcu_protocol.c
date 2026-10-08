@@ -6,8 +6,8 @@
 
 static void AssertRoundTrip(void)
 {
-    InterMcuSensorData source;
-    InterMcuSensorData decoded;
+    inter_mcu_sensor_data_t source;
+    inter_mcu_sensor_data_t decoded;
     uint8_t frame[INTER_MCU_FRAME_SIZE];
 
     memset(&source, 0, sizeof(source));
@@ -25,7 +25,7 @@ static void AssertRoundTrip(void)
     source.flow_quality = 97u;
     source.battery_mv = 11850u;
 
-    assert(InterMcu_EncodeSensorFrame(
+    assert(inter_mcu_encode_sensor_frame(
                &source, frame, (uint16_t)sizeof(frame)) == 1u);
     assert(frame[0] == INTER_MCU_MAGIC_0);
     assert(frame[1] == INTER_MCU_MAGIC_1);
@@ -40,7 +40,7 @@ static void AssertRoundTrip(void)
     assert(frame[12] == 0x12u);
 
     memset(&decoded, 0, sizeof(decoded));
-    assert(InterMcu_DecodeSensorFrame(
+    assert(inter_mcu_decode_sensor_frame(
                frame,
                (uint16_t)sizeof(frame),
                &decoded) == INTER_MCU_DECODE_OK);
@@ -60,27 +60,27 @@ static void AssertRoundTrip(void)
 
 static void AssertValidationFailures(void)
 {
-    InterMcuSensorData data;
+    inter_mcu_sensor_data_t data;
     uint8_t frame[INTER_MCU_FRAME_SIZE];
 
     memset(&data, 0, sizeof(data));
-    assert(InterMcu_EncodeSensorFrame(
+    assert(inter_mcu_encode_sensor_frame(
                &data, frame, (uint16_t)sizeof(frame)) == 1u);
 
-    assert(InterMcu_DecodeSensorFrame(
+    assert(inter_mcu_decode_sensor_frame(
                frame,
                INTER_MCU_FRAME_SIZE - 1u,
                &data) == INTER_MCU_DECODE_FRAME_SIZE);
 
     frame[0] ^= 0x01u;
-    assert(InterMcu_DecodeSensorFrame(
+    assert(inter_mcu_decode_sensor_frame(
                frame,
                (uint16_t)sizeof(frame),
                &data) == INTER_MCU_DECODE_MAGIC);
     frame[0] ^= 0x01u;
 
     frame[20] ^= 0x80u;
-    assert(InterMcu_DecodeSensorFrame(
+    assert(inter_mcu_decode_sensor_frame(
                frame,
                (uint16_t)sizeof(frame),
                &data) == INTER_MCU_DECODE_CRC);
@@ -90,7 +90,7 @@ static void AssertCrcReference(void)
 {
     static const uint8_t reference[] = "123456789";
 
-    assert(InterMcu_Crc16Ccitt(
+    assert(inter_mcu_crc16_ccitt(
                reference,
                (uint16_t)(sizeof(reference) - 1u)) == 0x29B1u);
 }

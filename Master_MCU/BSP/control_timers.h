@@ -1,6 +1,6 @@
-#ifndef CONTROL_TIMERS_H
-#define CONTROL_TIMERS_H
+#ifndef MASTER_MCU_BSP_CONTROL_TIMERS_H
+#define MASTER_MCU_BSP_CONTROL_TIMERS_H
 
-void BoardControlTimers_Init(void);
+void board_control_timers_init(void);
 
 #endif

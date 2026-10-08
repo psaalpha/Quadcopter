@@ -26,7 +26,7 @@ ctest --test-dir build/host --output-on-failure
 - `Shared` 不得包含 STM32 寄存器或具体板级依赖。
 - `App` 负责策略，不直接硬编码引脚。
 - `BSP` 负责时钟、定时器和板级资源映射。
-- `Hardware` 负责设备驱动和控制算法，不承担系统状态切换。
+- `Drivers` 负责设备驱动，`Control` 负责控制算法，不承担系统状态切换。
 - 中断只完成采样搬运、时间记账、任务通知和必要的硬件应答。
 
 新增或整理驱动时必须遵守
@@ -42,3 +42,4 @@ ctest --test-dir build/host --output-on-failure
 2. 增加或更新电脑端测试。
 3. 完成 Master/Slave ARMCC 构建。
 4. 先无桨测试，再进行受控台架测试。
+

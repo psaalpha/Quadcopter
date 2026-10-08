@@ -1,5 +1,5 @@
-#ifndef DMA_RX_H
-#define DMA_RX_H
+#ifndef SHARED_DRIVERS_DMA_RX_H
+#define SHARED_DRIVERS_DMA_RX_H
 
 #include "stm32f10x.h"
 
@@ -17,17 +17,17 @@ typedef struct {
     volatile uint8_t pending;
     uint32_t consumed;
     uint32_t overruns;
-} DmaRx;
+} dma_rx_t;
 
-void DmaRx_Init(DmaRx *rx, DMA_Channel_TypeDef *channel,
+void dma_rx_init(dma_rx_t *rx, DMA_Channel_TypeDef *channel,
                 volatile uint8_t *buffer, uint16_t size,
                 uint32_t half_flag, uint32_t full_flag);
-void DmaRx_NotifyFromIsr(DmaRx *rx);
-void DmaRx_OnDmaInterrupt(DmaRx *rx);
+void dma_rx_notify_from_isr(dma_rx_t *rx);
+void dma_rx_on_dma_interrupt(dma_rx_t *rx);
 /* Main loop only. Copies a bounded batch before parsing; dropped is set
  * when unread bytes were overwritten and the protocol parser must reset.
  */
-uint16_t DmaRx_Read(DmaRx *rx, uint8_t *bytes, uint16_t capacity,
+uint16_t dma_rx_read(dma_rx_t *rx, uint8_t *bytes, uint16_t capacity,
                     uint8_t *dropped);
 
 #endif

@@ -1,54 +1,54 @@
-#include "Pid.h"
+#include "pid_controller.h"
 
 #include <assert.h>
 #include <stdio.h>
 
 static void AssertYawShortestPathAndMixer(void)
 {
-    Drone_Motors_Stop();
-    Set_Base_Duty(50.0f);
-    Yaw_Angle_Kp_Get(1.0f);
-    Yaw_Kp_Get(1.0f);
-    Yaw_Ki_Get(0.0f);
-    Yaw_Kd_Get(0.0f);
-    Yaw_aim_Get(359.0f);
+    pid_stop_motors();
+    pid_set_base_duty(50.0f);
+    pid_set_yaw_angle_kp(1.0f);
+    pid_set_yaw_kp(1.0f);
+    pid_set_yaw_ki(0.0f);
+    pid_set_yaw_kd(0.0f);
+    pid_set_yaw_target(359.0f);
 
-    Drone_Outer_Angle_PID_Control(0.0f, 0.0f, 1.0f);
-    assert(Yaw_err_Get() == -2.0f); /* 359°→1° 应走 -2°，不是 +358°。 */
-    Drone_Inner_Rate_PID_Control(0.0f, 0.0f, 0.0f);
-    assert(Get_Motor_Duty_FrontLeft() < Get_Motor_Duty_FrontRight());
+    pid_update_angle_loop(0.0f, 0.0f, 1.0f);
+    assert(pid_get_yaw_error() == -2.0f); /* 359°→1° 应走 -2°，不是 +358°。 */
+    pid_update_rate_loop(0.0f, 0.0f, 0.0f);
+    assert(pid_get_motor_compare_front_left() < pid_get_motor_compare_front_right());
 
-    Drone_Motors_Stop();
-    assert(Get_Motor_Duty_FrontLeft() == 500u);
-    assert(Get_Motor_Duty_FrontRight() == 500u);
+    pid_stop_motors();
+    assert(pid_get_motor_compare_front_left() == 500u);
+    assert(pid_get_motor_compare_front_right() == 500u);
 }
 
 static void AssertNavigationOutputAndReset(void)
 {
-    Drone_Motors_Stop();
-    Set_Base_Duty(50.0f);
-    Altitude_aim_Get(100.0f);
-    Position_aim_Get(100, 200);
-    Altitude_Kp_Get(0.5f);
-    Altitude_Ki_Get(0.0f);
-    Altitude_Kd_Get(0.0f);
-    Position_X_Kp_Get(0.1f);
-    Position_X_Ki_Get(0.0f);
-    Position_X_Kd_Get(0.0f);
-    Position_Y_Kp_Get(0.1f);
-    Position_Y_Ki_Get(0.0f);
-    Position_Y_Kd_Get(0.0f);
+    pid_stop_motors();
+    pid_set_base_duty(50.0f);
+    pid_set_altitude_target(100.0f);
+    pid_set_position_target(100, 200);
+    pid_set_altitude_kp(0.5f);
+    pid_set_altitude_ki(0.0f);
+    pid_set_altitude_kd(0.0f);
+    pid_set_position_x_kp(0.1f);
+    pid_set_position_x_ki(0.0f);
+    pid_set_position_x_kd(0.0f);
+    pid_set_position_y_kp(0.1f);
+    pid_set_position_y_ki(0.0f);
+    pid_set_position_y_kd(0.0f);
 
-    Drone_Altitude_Position_PID_Control(90.0f, 90, 210, 0.05f);
-    assert(Altitude_pid_Get() == 5.0f);
-    assert(Position_roll_aim_Get() == 1.0f);
-    assert(Position_pitch_aim_Get() == -1.0f);
+    pid_update_navigation(90.0f, 90, 210, 0.05f);
+    assert(pid_get_altitude_output() == 5.0f);
+    assert(pid_get_position_roll_target() == 1.0f);
+    assert(pid_get_position_pitch_target() == -1.0f);
 
     /* 帧间隔超过控制器允许值时清空旧修正，避免下一次突跳。 */
-    Drone_Altitude_Position_PID_Control(80.0f, 80, 220, 0.20f);
-    assert(Altitude_pid_Get() == 0.0f);
-    assert(Position_roll_aim_Get() == 0.0f);
-    assert(Position_pitch_aim_Get() == 0.0f);
+    pid_update_navigation(80.0f, 80, 220, 0.20f);
+    assert(pid_get_altitude_output() == 0.0f);
+    assert(pid_get_position_roll_target() == 0.0f);
+    assert(pid_get_position_pitch_target() == 0.0f);
 }
 
 int main(void)

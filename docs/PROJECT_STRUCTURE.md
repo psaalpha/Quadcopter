@@ -1,116 +1,88 @@
-# 项目结构与模块职责
+# 项目结构与命名规范
 
-## 仓库总览
+本页对应 `codex/resume-study-spl` 的当前布局。主从控采用相同职责命名；只建立实际需要的层，不为从控建立空的 `Control`。
+
+## 目录总览
 
 ```text
-Quadcopter/
-├── Platform/STM32F1/          公共芯片平台
-├── Shared/Protocol/           主从共享协议
-├── Master_MCU/                主控固件
-│   ├── App/                   应用调度与安全策略
-│   ├── BSP/                   板级配置和定时器资源
-│   ├── Hardware/              驱动与当前控制算法
-│   └── User/                  main 和中断入口
-├── Slave_MCU/                 从控固件
-│   ├── Hardware/              传感器、显示和外设驱动
-│   └── User/                  采集、汇总和发送逻辑
-├── tests/host/                硬件无关单元测试
-├── tools/                     工程校验和双目标构建
-├── docs/                      工程文档
-└── .github/workflows/         自动质量检查
+Master_MCU/
+  Core/                 main.c、STM32 中断支持和 SPL 配置
+  App/                  app_scheduler、flight_safety
+  BSP/                  board_config、control_timers、motor_pwm、board_led、watchdog
+  Control/              attitude_estimator、kalman_filter、pid_controller
+  Drivers/
+    Bus/                soft_i2c
+    Communication/      bluetooth_serial、crsf、slave_link
+    Sensors/            mpu6050、mpu6050_regs
+  Project.uvprojx        Keil 构建工程
+  Project.uvoptx         与构建工程一致的文件分组和调试选项
+Slave_MCU/
+  Core/                 main.c、STM32 中断支持和 SPL 配置
+  App/                  slave_app、slave_scheduler
+  BSP/                  slave_board、board_inputs
+  Drivers/
+    Bus/                soft_spi（保留的历史软件 SPI）
+    Communication/      master_link
+    Display/            oled、oled_font、at7456e
+    Sensors/            optical_flow、qmc5883p
+      BMP390/           bmp390.c/h、bmp3.c/h、bmp3_defs.h
+  Project.uvprojx
+  Project.uvoptx
+Shared/
+  Protocol/             inter_mcu_protocol：固定帧编码、解码与 CRC
+  Scheduling/           periodic_tasks：纯 C 周期任务合并
+  Drivers/              dma_rx、millisecond_clock：两端共用的 STM32 辅助驱动
+Platform/STM32F1/
+  CMSIS/                启动汇编、内核与系统时钟支持
+  SPL/                  ST 标准外设库
+  System/               公共 Delay 服务
 ```
 
-## Platform
+`tests/host` 保存 8 组主机测试及寄存器桩，`tools` 保存路径检查和双目标 Keil 构建脚本，`docs` 保存学习与维护文档。调试配置文件和清理脚本继续留在各 MCU 工程目录。
 
-`Platform/STM32F1` 是 Master 和 Slave 的共同基础。
+## 职责与依赖
 
-| 目录 | 内容 | 修改约束 |
-|---|---|---|
-| `CMSIS` | Cortex-M3、启动文件、芯片系统文件 | 只做芯片平台级修改 |
-| `SPL` | STM32F10x 标准外设库 | 原则上视为第三方稳定代码 |
-| `System` | 当前公共 Delay 服务 | 不得依赖具体飞控业务 |
-
-禁止在 Master 或 Slave 下重新复制这些目录。
-
-## Shared
-
-`Shared/Protocol` 保存主从固件共同编译的纯 C 协议实现。
-
-- 不得包含 `stm32f10x.h`；
-- 不得访问寄存器；
-- 不得依赖 Master/Slave 私有头文件；
-- 必须能被电脑端编译器直接构建；
-- 协议字段变化必须更新 `PROTOCOL.md` 和测试。
-
-## Master MCU
-
-### App
-
-| 模块 | 职责 |
+| 层 | 职责与约束 |
 |---|---|
-| `app_scheduler` | 周期任务通知、消费和 overrun 计数 |
-| `flight_safety` | 启动锁、运行、失联和恢复锁状态转换 |
+| Core | 启动、主循环入口和 STM32 支持文件。本次保留主控 main.c 中的业务编排及 TIM2 ISR，不拆出新的应用文件。 |
+| App | 周期任务、安全策略、传感器采集与数据发布流程；调用控制、驱动和 BSP 接口。 |
+| BSP | 当前板卡的资源和接线：时基、PWM、LED、看门狗、外部输入、舵机、电池 ADC、蜂鸣器。 |
+| Control | 姿态估计、滤波与 PID 计算。pid_controller 是纯 C；attitude_estimator 仍读取 MPU6050，本次不改变其调用关系。 |
+| Drivers | 总线操作、串口协议接入、设备寄存器和显示。现有驱动内的 GPIO/总线初始化保留，不为分层拆出重复适配文件。 |
+| Shared | 共享协议、调度和硬件辅助实现只保留一份；Protocol/Scheduling 不访问寄存器，Drivers 可依赖 STM32 平台。 |
+| Platform | CMSIS、SPL 和公共延时；不依赖飞控业务。不在主从目录复制平台库。 |
 
-App 表达系统策略，不应直接配置 GPIO、DMA 或 USART。
+`slave_link` 位于主控，表示通往从控的接收链路；`master_link` 位于从控，表示通往主控的发送链路。两者共用 `Shared/Protocol/inter_mcu_protocol`，传输方向和协议未改变。
 
-### BSP
+`Drivers/Sensors/BMP390/bmp390.c` 是项目自有的 SPI 适配层；同目录中的 `bmp3.c/h` 和 `bmp3_defs.h` 是 Bosch 原厂代码，保持原内容、API 和版权声明。这里不另设 ThirdParty 目录。
 
-| 模块 | 职责 |
+## 命名规则
+
+- 项目自有 C 文件、函数和变量采用 `lower_snake_case`，公共函数带模块前缀，类型使用 `_t` 后缀。
+- 宏和枚举项使用 `UPPER_SNAKE_CASE`，头文件保护宏带工程/路径前缀，避免保留的双下划线名称。
+- 设置用 `set`，读取用 `get`；更新滤波或控制状态用 `update`。单位明确时使用 `_ms`、`_cm`、`_mm`、`_deg`、`_dps` 等后缀。
+- `main`、中断向量函数、CMSIS/SPL/Bosch API 及平台文件名按外部约定保留。
+- 串口命令字符串属于外部协议，例如 `PKp`、`Contrl_Speed`，保留其原拼写；相关 C 变量已改为英文语义名称。
+
+| 原名称 | 当前名称/语义 |
 |---|---|
-| `board_config.h` | 周期、通道、超时和电机安全常量 |
-| `control_timers` | TIM2 1ms 时基与 NVIC 配置 |
+| hubu.c / CompFilter_Simple | Control/attitude_estimator.c / attitude_estimator_update |
+| MyI2C.c / MyI2C_* | Drivers/Bus/soft_i2c.c / soft_i2c_* |
+| MySPI.c / MySPI_* | Drivers/Bus/soft_spi.c / soft_spi_* |
+| Pid.c / Drone_Inner_Rate_PID_Control | Control/pid_controller.c / pid_update_rate_loop |
+| Pitch_Kp_Get（实际设置） | pid_set_pitch_kp |
+| Pitch_Back_Kp（读蓝牙参数） | bluetooth_serial_get_pitch_kp |
+| Get_Motor_Duty_FrontLeft（返回 CCR 计数） | pid_get_motor_compare_front_left |
+| Kalman_Get_Roll（实际更新滤波器） | kalman_update_roll |
+| PWM4.c | BSP/motor_pwm.c；仍使用 TIM4、原通道映射和预装载配置 |
+| BlueSerial.c / SlaveMCU.c | Drivers/Communication/bluetooth_serial.c / slave_link.c |
+| 从控 slave_link.c / exti.c | Drivers/Communication/master_link.c / BSP/board_inputs.c |
+| yaw_ceshi / Contrl / MAG_intf | yaw_output_snapshot / control_throttle_percent / mag_calibration_switch |
 
-BSP 是板级资源的唯一解释层。引脚和定时器调整应先检查 `PINOUT.md`。
+## 本次重构边界
 
-### Hardware
+仅迁移和重命名、调整引用与工程分组。算法表达式、数据类型、常量、控制周期、DMA 大小、协议内容、外设寄存器配置、中断入口和处理顺序均保留。未删除保留的历史驱动，未扩大 main.c 拆分范围。
 
-当前包含：
+`soft_spi` 是现有历史软件 SPI，不替代 BMP390 当前使用的硬件 SPI1。启用历史驱动前仍需检查引脚资源。
 
-- MPU6050 和软件 I2C；
-- CRSF 接收；
-- Master/Slave 串口链路；
-- 蓝牙调参与遥测；
-- TIM4 四路 ESC PWM；
-- LED 和 IWDG；
-- PID、Kalman、姿态辅助代码；
-- 若干当前未启用的历史驱动。
-
-注意：当前 `Hardware` 仍同时包含驱动和算法，这是后续需要继续拆分的技术债。
-
-### User
-
-`main.c` 负责：
-
-- 按依赖顺序初始化模块；
-- 从调度器领取任务；
-- 编排驱动和算法调用；
-- 处理必要的中断入口。
-
-不要继续把新的协议实现、参数存储或复杂状态机直接堆入 `main.c`。
-
-## Slave MCU
-
-Slave 已拆分为：
-
-- `User/main.c`：初始化入口和主循环入口；
-- `App/slave_app`：输入事件、校准、采集、协议发布和分步显示；
-- `App/slave_scheduler`：50/200ms 周期任务及超时计数；
-- `BSP/slave_board`：时基、舵机、ADC、蜂鸣器、看门狗；
-- `Hardware/slave_link`：USART2 DMA 发送及缓冲区所有权；
-- `Hardware/OpticalFlow`：USART1 DMA 接收通知、主循环组帧；
-- 其余 `Hardware`：BMP390、QMC5883P、OLED 与 OSD 设备驱动；
-- `Shared/Scheduling`：纯 C 周期任务合并；
-- `Shared/Drivers`：依赖 STM32 SPL 的 DMA 环形接收与毫秒计时辅助。
-
-详见 [当前运行调度](RUNTIME_SCHEDULING.md)。
-
-## 活跃代码与遗留代码
-
-主控未使用的 NRF24L01、本地 QMC5883P、OLED、PWM2 和重复 DMA_Serial 驱动已清理；共享 SPL 和从控驱动保留。
-
-维护原则：
-
-1. 启用遗留驱动前先完成引脚、DMA、定时器和中断资源审查；
-2. 不使用的驱动不要默认假设已经验证；
-3. 长期不使用的模块应在独立提交中移出默认产品目标；
-4. 不要在清理遗留代码的同时修改飞行控制算法。
+运行频率和事件处理方式见 [RUNTIME_SCHEDULING.md](RUNTIME_SCHEDULING.md)，测试与实机验证边界见 [TESTING.md](TESTING.md)。

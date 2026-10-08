@@ -1,7 +1,7 @@
 #include "control_timers.h"
 #include "stm32f10x.h"
 #include "millisecond_clock.h"
-void BoardControlTimers_Init(void)
+void board_control_timers_init(void)
 {
     TIM_TimeBaseInitTypeDef time_base;
     NVIC_InitTypeDef interrupt_config;
@@ -18,6 +18,6 @@ void BoardControlTimers_Init(void)
     interrupt_config.NVIC_IRQChannelSubPriority = 1u;
     interrupt_config.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&interrupt_config);
-    MillisecondClock_Init();
+    millisecond_clock_init();
     TIM_Cmd(TIM2, ENABLE);
 }

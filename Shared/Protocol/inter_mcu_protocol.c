@@ -2,13 +2,13 @@
 
 #define INTER_MCU_CRC_OFFSET  39u
 
-static void WriteU16Le(uint8_t *destination, uint16_t value)
+static void write_u16_le(uint8_t *destination, uint16_t value)
 {
     destination[0] = (uint8_t)(value & 0xFFu);
     destination[1] = (uint8_t)((value >> 8) & 0xFFu);
 }
 
-static void WriteU32Le(uint8_t *destination, uint32_t value)
+static void write_u32_le(uint8_t *destination, uint32_t value)
 {
     destination[0] = (uint8_t)(value & 0xFFu);
     destination[1] = (uint8_t)((value >> 8) & 0xFFu);
@@ -16,13 +16,13 @@ static void WriteU32Le(uint8_t *destination, uint32_t value)
     destination[3] = (uint8_t)((value >> 24) & 0xFFu);
 }
 
-static uint16_t ReadU16Le(const uint8_t *source)
+static uint16_t read_u16_le(const uint8_t *source)
 {
     return (uint16_t)((uint16_t)source[0] |
                       ((uint16_t)source[1] << 8));
 }
 
-static uint32_t ReadU32Le(const uint8_t *source)
+static uint32_t read_u32_le(const uint8_t *source)
 {
     return (uint32_t)source[0] |
            ((uint32_t)source[1] << 8) |
@@ -30,7 +30,7 @@ static uint32_t ReadU32Le(const uint8_t *source)
            ((uint32_t)source[3] << 24);
 }
 
-uint16_t InterMcu_Crc16Ccitt(const uint8_t *data, uint16_t length)
+uint16_t inter_mcu_crc16_ccitt(const uint8_t *data, uint16_t length)
 {
     uint16_t crc;
     uint16_t index;
@@ -61,7 +61,7 @@ uint16_t InterMcu_Crc16Ccitt(const uint8_t *data, uint16_t length)
     return crc;
 }
 
-uint8_t InterMcu_EncodeSensorFrame(const InterMcuSensorData *data,
+uint8_t inter_mcu_encode_sensor_frame(const inter_mcu_sensor_data_t *data,
                                   uint8_t *frame,
                                   uint16_t frame_capacity)
 {
@@ -78,31 +78,31 @@ uint8_t InterMcu_EncodeSensorFrame(const InterMcuSensorData *data,
     frame[2] = INTER_MCU_PROTOCOL_VERSION;
     frame[3] = INTER_MCU_MESSAGE_SENSOR_DATA;
     frame[4] = INTER_MCU_SENSOR_PAYLOAD_SIZE;
-    WriteU16Le(&frame[5], data->sequence);
+    write_u16_le(&frame[5], data->sequence);
 
-    WriteU16Le(&frame[7], data->flags);
-    WriteU32Le(&frame[9], data->timestamp_ms);
-    WriteU32Le(&frame[13], (uint32_t)data->pressure_pa);
-    WriteU16Le(&frame[17], (uint16_t)data->temperature_centi_c);
-    WriteU32Le(&frame[19], (uint32_t)data->baro_altitude_mm);
-    WriteU16Le(&frame[23], data->yaw_centi_deg);
-    WriteU32Le(&frame[25], (uint32_t)data->flow_x);
-    WriteU32Le(&frame[29], (uint32_t)data->flow_y);
-    WriteU16Le(&frame[33], data->flow_distance_mm);
+    write_u16_le(&frame[7], data->flags);
+    write_u32_le(&frame[9], data->timestamp_ms);
+    write_u32_le(&frame[13], (uint32_t)data->pressure_pa);
+    write_u16_le(&frame[17], (uint16_t)data->temperature_centi_c);
+    write_u32_le(&frame[19], (uint32_t)data->baro_altitude_mm);
+    write_u16_le(&frame[23], data->yaw_centi_deg);
+    write_u32_le(&frame[25], (uint32_t)data->flow_x);
+    write_u32_le(&frame[29], (uint32_t)data->flow_y);
+    write_u16_le(&frame[33], data->flow_distance_mm);
     frame[35] = data->flow_quality;
-    WriteU16Le(&frame[36], data->battery_mv);
+    write_u16_le(&frame[36], data->battery_mv);
     frame[38] = 0u;
 
-    crc = InterMcu_Crc16Ccitt(frame, INTER_MCU_CRC_OFFSET);
-    WriteU16Le(&frame[INTER_MCU_CRC_OFFSET], crc);
+    crc = inter_mcu_crc16_ccitt(frame, INTER_MCU_CRC_OFFSET);
+    write_u16_le(&frame[INTER_MCU_CRC_OFFSET], crc);
 
     return 1u;
 }
 
-InterMcuDecodeStatus InterMcu_DecodeSensorFrame(
+inter_mcu_decode_status_t inter_mcu_decode_sensor_frame(
     const uint8_t *frame,
     uint16_t frame_length,
-    InterMcuSensorData *data)
+    inter_mcu_sensor_data_t *data)
 {
     uint16_t expected_crc;
     uint16_t actual_crc;
@@ -133,25 +133,25 @@ InterMcuDecodeStatus InterMcu_DecodeSensorFrame(
         return INTER_MCU_DECODE_PAYLOAD_SIZE;
     }
 
-    expected_crc = ReadU16Le(&frame[INTER_MCU_CRC_OFFSET]);
-    actual_crc = InterMcu_Crc16Ccitt(frame, INTER_MCU_CRC_OFFSET);
+    expected_crc = read_u16_le(&frame[INTER_MCU_CRC_OFFSET]);
+    actual_crc = inter_mcu_crc16_ccitt(frame, INTER_MCU_CRC_OFFSET);
     if (actual_crc != expected_crc)
     {
         return INTER_MCU_DECODE_CRC;
     }
 
-    data->sequence = ReadU16Le(&frame[5]);
-    data->flags = ReadU16Le(&frame[7]);
-    data->timestamp_ms = ReadU32Le(&frame[9]);
-    data->pressure_pa = (int32_t)ReadU32Le(&frame[13]);
-    data->temperature_centi_c = (int16_t)ReadU16Le(&frame[17]);
-    data->baro_altitude_mm = (int32_t)ReadU32Le(&frame[19]);
-    data->yaw_centi_deg = ReadU16Le(&frame[23]);
-    data->flow_x = (int32_t)ReadU32Le(&frame[25]);
-    data->flow_y = (int32_t)ReadU32Le(&frame[29]);
-    data->flow_distance_mm = ReadU16Le(&frame[33]);
+    data->sequence = read_u16_le(&frame[5]);
+    data->flags = read_u16_le(&frame[7]);
+    data->timestamp_ms = read_u32_le(&frame[9]);
+    data->pressure_pa = (int32_t)read_u32_le(&frame[13]);
+    data->temperature_centi_c = (int16_t)read_u16_le(&frame[17]);
+    data->baro_altitude_mm = (int32_t)read_u32_le(&frame[19]);
+    data->yaw_centi_deg = read_u16_le(&frame[23]);
+    data->flow_x = (int32_t)read_u32_le(&frame[25]);
+    data->flow_y = (int32_t)read_u32_le(&frame[29]);
+    data->flow_distance_mm = read_u16_le(&frame[33]);
     data->flow_quality = frame[35];
-    data->battery_mv = ReadU16Le(&frame[36]);
+    data->battery_mv = read_u16_le(&frame[36]);
 
     return INTER_MCU_DECODE_OK;
 }

@@ -6,7 +6,7 @@
 
 ## 推荐学习路径
 
-1. [简历项目复习导读](RESUME_STUDY_GUIDE.md)：本学习分支的代码入口、Yaw/光流链路、简历表述边界。
+1. [简历项目复习导读](RESUME_STUDY_GUIDE.md)：本学习分支的代码入口、estimated_yaw_deg/光流链路、简历表述边界。
 2. [嵌入式工程化学习指南](DEVELOP_ENGINEERING_LEARNING_GUIDE.md)：按 `develop`
    的六个版本学习技术栈、代码路径、实验、验收和面试表达。
 2. [项目结构](PROJECT_STRUCTURE.md)：确认目录、模块和代码所有权。
@@ -38,3 +38,4 @@
 - 文档中的路径、命令和接口名称必须与当前分支一致；`develop` 的历史学习指南按其原始版本理解。
 - 不确定的信息应标记为“待硬件验证”，不能把推测写成事实。
 - 每个工程化提交都应在 `CHANGELOG.md` 记录目的、影响和验证结果。
+

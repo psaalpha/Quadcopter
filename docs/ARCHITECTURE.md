@@ -124,31 +124,16 @@ TIM3 中断也直接读取姿态。中断和主循环之间依靠多个二值标
 
 ```mermaid
 flowchart TD
-    MASTER_USER["Master User<br/>启动入口与中断入口"]
-    MASTER_APP["Master App<br/>任务调度、安全状态、应用编排"]
-    MASTER_BSP["Master BSP<br/>板级配置、控制定时器"]
-    MASTER_HW["Master Hardware<br/>IMU、CRSF、PID、PWM、串口驱动"]
-
-    SLAVE_USER["Slave User<br/>传感器采集与数据汇总"]
-    SLAVE_HW["Slave Hardware<br/>BMP390、光流、磁力计、显示、舵机"]
-
-    PROTOCOL["Shared Protocol<br/>版本、单位、字节序、CRC"]
-    PLATFORM["Platform STM32F1<br/>CMSIS、SPL、Delay"]
-    HOST_TESTS["Host Tests<br/>协议与安全状态测试"]
-
-    MASTER_USER --> MASTER_APP
-    MASTER_USER --> MASTER_BSP
-    MASTER_APP --> MASTER_HW
-    MASTER_BSP --> PLATFORM
-    MASTER_HW --> PLATFORM
-    MASTER_HW --> PROTOCOL
-
-    SLAVE_USER --> SLAVE_HW
-    SLAVE_USER --> PROTOCOL
-    SLAVE_HW --> PLATFORM
-
-    HOST_TESTS --> PROTOCOL
-    HOST_TESTS --> MASTER_APP
+    CORE["Core：入口与现有主循环"] --> APP["App：调度与业务"]
+    CORE --> CONTROL["Control：估计与 PID"]
+    APP --> DRIVERS["Drivers：通信与设备"]
+    CORE --> BSP["BSP：板级资源"]
+    CONTROL --> DRIVERS
+    DRIVERS --> SHARED["Shared：协议与辅助服务"]
+    APP --> SHARED
+    BSP --> PLATFORM["Platform：CMSIS 与 SPL"]
+    DRIVERS --> PLATFORM
+    SHARED --> PLATFORM
 ```
 
 核心依赖规则：
@@ -157,8 +142,8 @@ flowchart TD
 2. `Shared/Protocol`、`Shared/Scheduling` 是纯 C；`Shared/Drivers` 依赖 STM32 平台，不依赖具体应用策略；
 3. `App` 负责策略，不直接拥有具体引脚；
 4. `BSP` 负责板级时钟、定时器和资源映射；
-5. `Hardware` 负责设备驱动和控制算法；
-6. `User` 负责启动、编排和中断入口，不承载可复用协议。
+5. `Drivers` 负责设备驱动，`Control` 负责控制算法；
+6. `Core` 负责启动、编排和中断入口，不承载可复用协议。
 
 ### 3.2 设计重点
 
@@ -474,7 +459,7 @@ flowchart LR
 | MCU 基础 | CMSIS、启动文件、SPL、时钟、NVIC | 能理解程序从复位到应用运行的底层链路 |
 | 外设驱动 | GPIO、TIM、USART、DMA、ADC、SPI、软件 I2C | 能配置和调试 STM32 常用外设 |
 | 资源规划 | 主从引脚表、DMA 通道、定时器所有权 | 能发现并消除外设复用冲突 |
-| 架构分层 | Platform、Shared、App、BSP、Hardware、User | 能从“功能堆积”转向有依赖规则的工程 |
+| 架构分层 | Platform、Shared、Core、App、BSP、Drivers、Control | 能从“功能堆积”转向有依赖规则的工程 |
 | C 语言底层能力 | 定宽整数、端序、对齐、volatile、回绕运算 | 能处理嵌入式 C 的平台相关细节 |
 | 通信协议 | 帧格式、版本、长度、CRC、序号、状态标志 | 能设计可升级、可诊断的 MCU 间协议 |
 | 实时系统 | 多速率调度、ISR 最小化、overrun | 能分析任务周期、优先级和 deadline |
@@ -510,8 +495,8 @@ flowchart LR
    - Master 尚未将所有传感器健康、新鲜度和范围检查纳入解锁条件。
 
 3. **算法模块纯化**
-   - PID 和姿态算法仍位于 Hardware 目录；
-   - 后续应拆为不依赖 STM32 的算法模块，并增加数值测试。
+   - PID 和姿态算法已归入 Control 目录；
+   - 姿态估计仍直接读取 IMU；进一步解耦应单独实施，保留现有数值测试。
 
 4. **遗留驱动治理**
    - 部分未在 `main` 初始化的驱动仍保留在默认 Keil 目标中；
@@ -558,3 +543,4 @@ BSP、自动测试、构建、CI 和文档治理
 - 每次变化都有构建、测试、日志和文档证据。
 
 这套架构还不是完整量产飞控架构，但已经从个人实验代码进入了可持续工程化演进的阶段。
+

@@ -1,5 +1,8 @@
 # develop 分支嵌入式工程化学习指南
 
+> 本文保留 develop 演进过程的学习说明；源码路径与项目 API 已同步到当前 SPL 分支。现行目录和命名以 [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) 为准。
+
+
 ## 1. 这份指南解决什么问题
 
 `develop` 不是简单地“把目录整理了一下”。它记录了一个双 STM32 四旋翼项目从
@@ -52,7 +55,7 @@
 - TIM4 ESC PWM 周期和脉宽；
 - 电机最小输出与安全状态放行条件。
 
-`main..develop` 没有修改 `Master_MCU/Hardware/Pid.c/.h`。工程化学习的重点是保护既有
+`main..develop` 没有修改 `Master_MCU/Control/pid_controller.c/.h`。工程化学习的重点是保护既有
 控制行为，而不是借重构之名重新调参。
 
 ### 2.3 硬件实验规则
@@ -135,9 +138,9 @@ git switch study/develop-course
 
 ```mermaid
 flowchart TB
-    USER["User/main 与 ISR 入口"]
+    USER["Core/main 与 ISR 入口"]
     APP["App：调度与安全策略"]
-    HW["Hardware：设备驱动与现有算法"]
+    HW["Drivers 与 Control：设备驱动与算法"]
     BSP["BSP：板级周期、定时器与资源解释"]
     SHARED["Shared：硬件无关协议"]
     PLATFORM["Platform/STM32F1：CMSIS、SPL、系统服务"]
@@ -151,7 +154,7 @@ flowchart TB
     SHARED --> HW
 ```
 
-`develop` 仍处于逐步分层阶段：`Hardware` 中既有设备驱动，也保留 PID、姿态等算法，
+当前 SPL 分支将设备驱动归入 `Drivers`，PID、姿态等算法归入 `Control`，
 `main.c` 仍承担较多编排。这是已记录的技术债，不应被描述成最终企业架构。
 
 ### 4.3 三条最重要的数据链
@@ -161,12 +164,12 @@ flowchart TB
 ```text
 Slave 采样
 → 明确单位和定宽整数
-→ InterMcu_EncodeSensorFrame
+→ inter_mcu_encode_sensor_frame
 → USART2
 → Master USART3 DMA/IDLE
 → Slave_TryExtractFrame
-→ InterMcu_DecodeSensorFrame
-→ Slave_ApplyPacket
+→ inter_mcu_decode_sensor_frame
+→ slave_link_apply_packet
 → Master 主循环消费
 ```
 
@@ -179,7 +182,7 @@ Slave 采样
 → main 领取任务
 → 读取传感器与 RC
 → 姿态/PID/mixer
-→ FlightSafety_MotorsAllowed
+→ flight_safety_motors_allowed
 → TIM4 PWM compare
 ```
 
@@ -204,7 +207,7 @@ validate_project.py
 | Cortex-M3 | 启动文件、向量表、NVIC、`SystemInit` | 画出 Reset 到 `main` 的执行链 |
 | STM32 SPL | RCC、GPIO、TIM、USART、DMA | 读懂外设初始化与中断配置 |
 | Keil 工程 | 两个 `.uvprojx`、ARMCC 构建 | 管理多目标 source/include，读构建日志 |
-| 软件分层 | Platform、BSP、App、Hardware、Shared | 判断一段代码应该属于哪一层 |
+| 软件分层 | Platform、BSP、App、Drivers、Control、Shared | 判断一段代码应该属于哪一层 |
 | 通信协议 | `inter_mcu_protocol.*` | 设计 framing、版本、长度、CRC、sequence |
 | 数据表示 | 小端、定宽整数、明确单位 | 避免 packed struct、裸 float 和隐式缩放 |
 | 裸机实时系统 | scheduler、2/5/10/20 ms 周期 | 解释 deadline、WCET、jitter、overrun |
@@ -299,8 +302,8 @@ SPL 是 STM32F1 标准外设库。它封装寄存器，但仍属于芯片平台�
 4. `Platform/STM32F1/CMSIS/system_stm32f10x.c`
 5. `Platform/STM32F1/CMSIS/core_cm3.h`
 6. `Platform/STM32F1/SPL/stm32f10x_rcc.c`
-7. `Master_MCU/User/main.c`
-8. `Slave_MCU/User/main.c`
+7. `Master_MCU/Core/main.c`
+8. `Slave_MCU/Core/main.c`
 
 ### 动手实验
 
@@ -369,7 +372,7 @@ SPL 是 STM32F1 标准外设库。它封装寄存器，但仍属于芯片平台�
 Magic
 → Version
 → Message Type
-→ Payload Length
+→ Payload length
 → Sequence
 → Flags
 → Timestamp
@@ -391,7 +394,7 @@ C 结构体是内存表示，不是协议：
 
 #### 小端序与定宽整数
 
-`WriteU16Le()` 把低 8 位放在低地址，`WriteU32Le()` 明确写四个字节。
+`write_u16_le()` 把低 8 位放在低地址，`write_u32_le()` 明确写四个字节。
 协议使用 `uint16_t/int16_t/uint32_t/int32_t`，避免 `int` 宽度不确定。
 
 物理量直接写入名字和单位：
@@ -431,10 +434,10 @@ UART 收到的是字节流，不天然存在“帧”。Master 必须：
 2. `Shared/Protocol/inter_mcu_protocol.h`
 3. `Shared/Protocol/inter_mcu_protocol.c`
 4. `tests/host/test_inter_mcu_protocol.c`
-5. `Slave_MCU/User/main.c` 的 `USART2_SendPacket()`
-6. `Master_MCU/Hardware/SlaveMCU.c` 的 `Slave_TryExtractFrame()`
-7. `Slave_ApplyPacket()`
-8. `Master_MCU/Hardware/SlaveMCU.h` 的诊断计数器
+5. `Slave_MCU/Core/main.c` 的 `USART2_SendPacket()`
+6. `Master_MCU/Drivers/Communication/slave_link.c` 的 `Slave_TryExtractFrame()`
+7. `slave_link_apply_packet()`
+8. `Master_MCU/Drivers/Communication/slave_link.h` 的诊断计数器
 
 ### 数据生命周期
 
@@ -624,9 +627,9 @@ stateDiagram-v2
 3. `Master_MCU/App/flight_safety.h/.c`
 4. `tests/host/test_flight_safety.c`
 5. `docs/SAFETY.md`
-6. `Master_MCU/User/main.c` 中四个 `FlightControl_Run*Task()`
+6. `Master_MCU/Core/main.c` 中四个 `FlightControl_Run*Task()`
 7. `TIM1_UP_IRQHandler()`、`TIM2_IRQHandler()`、`TIM3_IRQHandler()`、`TIM4_IRQHandler()`
-8. `FlightControl_HoldSafe()` 和电机写入路径
+8. `flight_control_hold_safe()` 和电机写入路径
 
 ### 动手实验
 
@@ -794,8 +797,8 @@ CMake 的 Release 配置通常定义 `NDEBUG`，标准 `assert()` 会被预处�
 1. `docs/PINOUT.md`
 2. `Master_MCU/BSP/board_config.h`
 3. `Master_MCU/BSP/control_timers.c`
-4. `Master_MCU/Hardware/PWM4.c`
-5. `Master_MCU/User/main.c` 初始化顺序
+4. `Master_MCU/BSP/motor_pwm.c`
+5. `Master_MCU/Core/main.c` 初始化顺序
 6. `CMakeLists.txt`
 7. `tests/host/CMakeLists.txt`
 8. `tools/validate_project.py`
@@ -1038,7 +1041,7 @@ Master_MCU/Project.uvprojx
 → Reset_Handler
 → SystemInit
 → C runtime
-→ Master_MCU/User/main.c
+→ Master_MCU/Core/main.c
 → 模块初始化
 → while(1)
 ```
@@ -1055,17 +1058,17 @@ Master_MCU/Project.uvprojx
 ## 路线 B：从 Slave 传感器到 Master 控制输入
 
 ```text
-Slave_MCU/User/main.c 采样
-→ InterMcuSensorData
+Slave_MCU/Core/main.c 采样
+→ inter_mcu_sensor_data_t
 → USART2_SendPacket
-→ InterMcu_EncodeSensorFrame
+→ inter_mcu_encode_sensor_frame
 → USART 物理链路
 → Master USART3_IRQHandler
 → Slave_TryExtractFrame
-→ InterMcu_DecodeSensorFrame
-→ Slave_ApplyPacket
-→ slave.updated
-→ FlightControl_RefreshSlaveData
+→ inter_mcu_decode_sensor_frame
+→ slave_link_apply_packet
+→ slave_sensor_data.updated
+→ flight_control_refresh_slave_data
 ```
 
 检查点：
@@ -1081,14 +1084,14 @@ Slave_MCU/User/main.c 采样
 
 ```text
 board_config 周期
-→ BoardControlTimers_Init
+→ board_control_timers_init
 → TIM ISR
 → AppScheduler_NotifyFromIsr
-→ main: AppScheduler_Take
+→ main: app_scheduler_take
 → FlightControl_Run*Task
 → PID / mixer
-→ FlightSafety_MotorsAllowed
-→ PWM4_SetCompare1..4
+→ flight_safety_motors_allowed
+→ motor_pwm_set_compare1..4
 ```
 
 检查点：
@@ -1103,13 +1106,13 @@ board_config 周期
 ## 路线 D：从 RC 帧到失联停机
 
 ```text
-CRSF_Process
-→ FlightControl_HandleRcFrame
-→ FlightSafety_OnValidRcFrame
+crsf_process
+→ flight_control_handle_rc_frame
+→ flight_safety_on_valid_rc_frame
 → STARTUP_LOCK / ACTIVE
-→ FlightSafety_CheckTimeout
+→ flight_safety_check_timeout
 → LINK_LOSS / RECOVERY_LOCK
-→ FlightControl_HoldSafe
+→ flight_control_hold_safe
 → PWM minimum
 ```
 
@@ -1192,10 +1195,10 @@ git diff / review
 | 3 | Platform 与 Keil 多目标 | 两个 uvprojx、SPL | 共享/独立边界说明 |
 | 4 | 协议 framing 与数据表示 | protocol.h/c、PROTOCOL | 41 字节手工解析 |
 | 5 | CRC、故障注入与 Host 测试 | protocol test | 边界/坏帧测试 |
-| 6 | TIM/NVIC/PWM | board_config、timers、PWM4 | PSC/ARR/脉宽计算 |
+| 6 | TIM/NVIC/PWM | board_config、timers、motor_pwm | PSC/ARR/脉宽计算 |
 | 7 | 协作式调度和并发 | app_scheduler、main ISR | pending/overrun 实验 |
 | 8 | 安全状态机 | flight_safety、SAFETY | 转换表和扩展测试 |
-| 9 | DMA/IDLE 主从数据流 | SlaveMCU、两端 main | 端到端数据流图 |
+| 9 | DMA/IDLE 主从数据流 | slave_link、两端 main | 端到端数据流图 |
 | 10 | CMake、Python、CI | tests、tools、workflow | 定位三类门禁失败 |
 | 11 | 无桨台架 | timer、safety、PWM | 时序和失联测试报告 |
 | 12 | 维护、发布与答辩 | DRIVER_API、RELEASE | release evidence + 答辩 |
@@ -1217,7 +1220,7 @@ git diff / review
 ### Level 1：能读懂
 
 - 能找到两颗 MCU 的入口和职责；
-- 能解释 Platform、BSP、App、Hardware、Shared；
+- 能解释 Platform、BSP、App、Drivers、Control、Shared；
 - 能画主从协议和控制任务数据流；
 - 能运行结构校验和两个 Host 测试。
 
@@ -1352,7 +1355,7 @@ git diff / review
 - Slave 数据新鲜度尚未成为电机放行条件；
 - 协议要求配对版本，没有跨版本协商；
 - GitHub CI 不执行商业 ARMCC；
-- `main.c` 和 `Hardware` 仍有算法/驱动/编排耦合；
+- 主控 `Core/main.c` 保留业务编排；`Control/attitude_estimator.c` 仍直接读取 IMU；
 - 尚缺系统参数管理、非阻塞日志、统一故障、完整 HAL 和 HIL。
 
 建议完成本指南后，再进入 `embedded-engineering-upgrade` 分支学习：
@@ -1453,7 +1456,7 @@ study-notes/
 完成课程后，逐项回答“是/否”：
 
 - [ ] 我能从 Reset Handler 讲到两端 `main`。
-- [ ] 我能解释 CMSIS、SPL、BSP、App 和 Hardware 的边界。
+- [ ] 我能解释 CMSIS、SPL、BSP、App、Drivers 和 Control 的边界。
 - [ ] 我能手工解析 41 字节主从协议。
 - [ ] 我能解释 CRC16、端序、量化和 sequence。
 - [ ] 我能画出 2/5/10/20 ms 多速率时间轴。
@@ -1469,3 +1472,4 @@ study-notes/
 
 全部完成后，你掌握的不只是这个四旋翼工程，而是一套可以迁移到机器人、云台、
 电机控制器、工业采集终端和其他 STM32 产品的嵌入式工程方法。
+

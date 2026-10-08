@@ -1,6 +1,6 @@
 #include "periodic_tasks.h"
 #include <string.h>
-void PeriodicTasks_Init(PeriodicTasks *tasks, const uint32_t *periods, uint8_t count)
+void periodic_tasks_init(periodic_tasks_t *tasks, const uint32_t *periods, uint8_t count)
 {
     uint8_t i;
     memset(tasks, 0, sizeof(*tasks));
@@ -10,7 +10,7 @@ void PeriodicTasks_Init(PeriodicTasks *tasks, const uint32_t *periods, uint8_t c
         tasks->remaining_ms[i] = tasks->period_ms[i];
     }
 }
-void PeriodicTasks_Advance(PeriodicTasks *tasks, uint32_t elapsed_ms)
+void periodic_tasks_advance(periodic_tasks_t *tasks, uint32_t elapsed_ms)
 {
     uint8_t i;
     tasks->now_ms += elapsed_ms;
@@ -26,7 +26,7 @@ void PeriodicTasks_Advance(PeriodicTasks *tasks, uint32_t elapsed_ms)
         }
     }
 }
-uint8_t PeriodicTasks_Take(PeriodicTasks *tasks, uint8_t index)
+uint8_t periodic_tasks_take(periodic_tasks_t *tasks, uint8_t index)
 {
     uint8_t pending;
     if (index >= tasks->count) return 0u;

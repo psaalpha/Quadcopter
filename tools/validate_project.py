@@ -33,6 +33,17 @@ REQUIRED_FILES = (
     "docs/ROADMAP.md",
     "Shared/Protocol/inter_mcu_protocol.c",
     "Shared/Protocol/inter_mcu_protocol.h",
+    "Master_MCU/Core/main.c",
+    "Master_MCU/Control/attitude_estimator.c",
+    "Master_MCU/Control/kalman_filter.c",
+    "Master_MCU/Control/pid_controller.c",
+    "Master_MCU/Drivers/Bus/soft_i2c.c",
+    "Slave_MCU/Core/main.c",
+    "Slave_MCU/BSP/board_inputs.c",
+    "Slave_MCU/Drivers/Sensors/BMP390/bmp390.c",
+    "Slave_MCU/Drivers/Sensors/BMP390/bmp3.c",
+    "Slave_MCU/Drivers/Sensors/BMP390/bmp3.h",
+    "Slave_MCU/Drivers/Sensors/BMP390/bmp3_defs.h",
     "Master_MCU/App/app_scheduler.c",
     "Master_MCU/App/flight_safety.c",
     "Master_MCU/BSP/board_config.h",
@@ -43,7 +54,7 @@ REQUIRED_FILES = (
     "Slave_MCU/App/slave_app.c",
     "Slave_MCU/App/slave_scheduler.c",
     "Slave_MCU/BSP/slave_board.c",
-    "Slave_MCU/Hardware/slave_link.c",
+    "Slave_MCU/Drivers/Communication/master_link.c",
     "docs/RUNTIME_SCHEDULING.md",
     "tests/host/test_scheduler.c",
     "tests/host/test_slave_io.c",
@@ -52,6 +63,10 @@ REQUIRED_FILES = (
     "tests/host/test_flight_safety.c",
 )
 REMOVED_DUPLICATE_DIRECTORIES = (
+    "Master_MCU/User",
+    "Master_MCU/Hardware",
+    "Slave_MCU/User",
+    "Slave_MCU/Hardware",
     "Master_MCU/Start",
     "Master_MCU/Library",
     "Master_MCU/System",
@@ -72,6 +87,33 @@ def validate_keil_project(project: Path) -> list[str]:
         root = ET.parse(project).getroot()
     except (OSError, ET.ParseError) as error:
         return [f"{project.relative_to(REPOSITORY_ROOT)}: {error}"]
+
+    build_files = root.findall(".//Files/File")
+    seen_sources: set[Path] = set()
+    for entry in build_files:
+        raw_path = entry.findtext("FilePath") or ""
+        target = resolve_project_path(project, raw_path)
+        if target in seen_sources:
+            errors.append(f"{project.name}: duplicate source entry: {raw_path}")
+        seen_sources.add(target)
+        if entry.findtext("FileName") != target.name:
+            errors.append(f"{project.name}: filename/path mismatch: {raw_path}")
+
+    options = project.with_suffix(".uvoptx")
+    try:
+        options_root = ET.parse(options).getroot()
+        option_paths = sorted(
+            (node.text or "").replace("\\", "/")
+            for node in options_root.iter("PathWithFileName")
+        )
+        build_paths = sorted(
+            (node.text or "").replace("\\", "/")
+            for node in root.iter("FilePath")
+        )
+        if option_paths != build_paths:
+            errors.append(f"{options.relative_to(REPOSITORY_ROOT)}: file list differs from build project")
+    except (OSError, ET.ParseError) as error:
+        errors.append(f"{options.relative_to(REPOSITORY_ROOT)}: {error}")
 
     for element in root.iter("FilePath"):
         raw_path = (element.text or "").strip()
@@ -146,6 +188,22 @@ def validate_markdown_links(document: Path) -> list[str]:
     return errors
 
 
+def validate_cmake_paths() -> list[str]:
+    """Check literal repository references; CMake/CTest remains the build gate."""
+    errors: list[str] = []
+    for cmake in (REPOSITORY_ROOT / "CMakeLists.txt",
+                  REPOSITORY_ROOT / "tests/host/CMakeLists.txt"):
+        text = re.sub(r"#[^\n]*", "", cmake.read_text(encoding="utf-8"))
+        for raw in re.findall(r"(?<![\w])(?:\.\./)+[A-Za-z0-9_./-]+", text):
+            if not (cmake.parent / raw).exists():
+                errors.append(f"{cmake.relative_to(REPOSITORY_ROOT)}: missing path: {raw}")
+        for block in re.findall(r"add_executable\(\s*\w+\s+([^)]*)\)", text):
+            for raw in block.split():
+                if raw.endswith((".c", ".h")) and not (cmake.parent / raw).is_file():
+                    errors.append(f"{cmake.relative_to(REPOSITORY_ROOT)}: missing source: {raw}")
+    return errors
+
+
 def main() -> int:
     errors: list[str] = []
 
@@ -155,7 +213,9 @@ def main() -> int:
 
     for relative_path in REMOVED_DUPLICATE_DIRECTORIES:
         if (REPOSITORY_ROOT / relative_path).exists():
-            errors.append(f"duplicate platform directory returned: {relative_path}")
+            errors.append(f"obsolete or duplicate directory returned: {relative_path}")
+
+    errors.extend(validate_cmake_paths())
 
     for project in PROJECTS:
         errors.extend(validate_keil_project(project))
@@ -173,13 +233,15 @@ def main() -> int:
 
     print("Project validation passed:")
     print("  - required engineering files are present")
-    print("  - duplicate platform trees are absent")
-    print("  - both Keil project XML files are valid")
+    print("  - obsolete and duplicate directories are absent")
+    print("  - both Keil projects and option file lists agree")
     print("  - all Keil source and include references exist")
     print("  - both firmware targets compile the shared protocol")
     print("  - internal Markdown document links resolve")
+    print("  - literal CMake source and include paths exist")
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
+

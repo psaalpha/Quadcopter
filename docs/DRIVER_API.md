@@ -167,11 +167,11 @@ DriverStatus Uart_Send(const uint8_t *data, uint16_t length);
 | 模块 | 当前优点 | 后续规范化重点 |
 |---|---|---|
 | `CRSF` | 已有 CRC、帧计数和 Process 边界 | 将公开全局通道逐步改为快照 API |
-| `SlaveMCU` | 有协议校验和诊断计数 | 增加数据新鲜度查询，减少公开可写全局 |
-| `BlueSerial` | DMA 接收通知，主循环组帧/解析；DMA 遥测忙时跳过；重复接口已清理 | 保留必要的溢出和超长帧计数 |
+| `slave_link` | 有协议校验和诊断计数 | 增加数据新鲜度查询，减少公开可写全局 |
+| `bluetooth_serial` | DMA 接收通知，主循环组帧/解析；DMA 遥测忙时跳过；重复接口已清理 | 保留必要的溢出和超长帧计数 |
 | `MPU6050` | 模块前缀明确 | 初始化/读取增加状态和超时 |
-| `PWM4` | 输出范围有限制 | 改为电机语义 API，而不是裸 CH1–CH4 |
-| `OpticalFlow` | 有有效性和超时处理 | 给 `IsDataValid/GetFlowX` 增加模块前缀 |
+| `motor_pwm` | 输出范围有限制 | 改为电机语义 API，而不是裸 CH1–CH4 |
+| `OpticalFlow` | 有有效性和超时处理 | 给 `optical_flow_is_valid/optical_flow_get_x` 增加模块前缀 |
 | `QMC5883P` | 初始化和校准阶段明确 | 统一校准返回值，隐藏内部全局状态 |
 | `BMP390` | 采用 Bosch 回调式底层接口 | 明确 wrapper 与 vendor 源码边界 |
 | `OLED/OSD` | 功能接口直观 | 输入字符串使用 `const`，补充边界约束 |
@@ -191,17 +191,18 @@ DriverStatus Uart_Send(const uint8_t *data, uint16_t length);
 ## 当前主控串口执行边界
 
 - CRSF 保持原实现：USART2 DMA 环形接收，5ms 主循环解析。
-- 蓝牙 USART1：256 字节 DMA 环形接收；IDLE/HT/TC 仅清标志、通知和累计绕圈。主循环 `BlueSerial_Process()` 每轮最多取 64 字节，收到一条命令即返回，紧接着 `PID_Param_Parse()` 应用；后续命令留待下一轮。
-- 从控 USART3：256 字节 DMA 环形接收，115200/8N1，41 字节/帧、20Hz；`SlaveMCU_Process()` 每轮最多处理 64 字节。保留半帧、验证 CRC16/版本、坏帧重新同步，控制使用最新有效帧。
+- 蓝牙 USART1：256 字节 DMA 环形接收；IDLE/HT/TC 仅清标志、通知和累计绕圈。主循环 `bluetooth_serial_process()` 每轮最多取 64 字节，收到一条命令即返回，紧接着 `bluetooth_serial_parse_parameters()` 应用；后续命令留待下一轮。
+- 从控 USART3：256 字节 DMA 环形接收，115200/8N1，41 字节/帧、20Hz；`slave_link_process()` 每轮最多处理 64 字节。保留半帧、验证 CRC16/版本、坏帧重新同步，控制使用最新有效帧。
 - 两条链路共用 `dma_rx`：主循环先取走事件再处理数据，不停止或重置接收 DMA；未读数据达到缓冲容量时保守丢弃并重置协议半帧。HT/TC 通知覆盖没有 IDLE 的连续流；短临界区内只处理游标，恢复原 PRIMASK。若全局关中断超过一整圈，单个硬件 TC 标志无法还原多圈，不能保证恢复全部数据。
-- 诊断：蓝牙 `BlueSerial_GetRxOverruns()` / `BlueSerial_GetRxFrameErrors()`；从控 `slave.rx_overruns` 和已有 CRC/格式/序号缺口计数。没有周期打印。
+- 诊断：蓝牙 `bluetooth_serial_get_rx_overruns()` / `bluetooth_serial_get_rx_frame_errors()`；从控 `slave_sensor_data.rx_overruns` 和已有 CRC/格式/序号缺口计数。没有周期打印。
 - PWM：500Hz 内环计算后写四路 CCR，UDIS 短暂阻止半套值被装载；50Hz 更新事件加载预装载值。若更新边界恰落在写入期间，该次加载可能推迟到下一周期。安全路径直接写最小有效比较值并清除旧预装载，不人为重启 PWM 周期。
 
 ## 从机 DMA 与事件接口（2026-10-04）
 
 当前从机的初始化/周期/事件入口已从 main 拆到 App/BSP。
-`OpticalFlow_Process(now_ms)`、`SlaveLink_Process(now_ms)`、`EXTI_Inputs_Take()` 都由主循环调用。
+`optical_flow_process(now_ms)`、`master_link_process(now_ms)`、`board_inputs_take()` 都由主循环调用。
 光流 IRQ 不再解析；TX IRQ 不再修改业务 busy 状态。
 共享 `dma_rx` 位于 `Shared/Drivers`，两目标引用同一源文件。
 软件 I2C 短事务保留，显示分块、ADC EOC 轮询、UART DMA 避免长时间连续占用。
 完整的频率、缓冲所有权、Flash 暂停和诊断计数见 [运行调度](RUNTIME_SCHEDULING.md)。
+

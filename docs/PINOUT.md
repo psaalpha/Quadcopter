@@ -8,12 +8,12 @@
 |---|---|---|
 | PA2 / PA3 | USART2 TX/RX，CRSF 420000 | CRSF |
 | PA6 / PA7 | 软件 I2C，MPU6050 | IMU |
-| PA9 / PA10 | USART1 TX/RX，蓝牙调参 38400 | BlueSerial |
+| PA9 / PA10 | USART1 TX/RX，蓝牙调参 38400 | bluetooth_serial |
 | PB6 / TIM4_CH1 | 后左电机 | Motor PWM |
 | PB7 / TIM4_CH2 | 前右电机 | Motor PWM |
 | PB8 / TIM4_CH3 | 前左电机 | Motor PWM |
 | PB9 / TIM4_CH4 | 后右电机 | Motor PWM |
-| PB10 / PB11 | USART3 TX/RX，主从链路 115200 | SlaveMCU |
+| PB10 / PB11 | USART3 TX/RX，主从链路 115200 | slave_link |
 | PC13 | LED1 | 状态指示 |
 | PA0 | LED2 | CH4 指示 |
 | PA5 | LED3 | CH5 指示 |
@@ -21,8 +21,8 @@
 | TIM2 | 1ms 统一时基，发布 2/5/10/100ms 任务 | BSP |
 | TIM3 | 不再用于周期调度 | BSP |
 | TIM4 | 50Hz 四路 ESC PWM；500Hz内环写CCR预装载，不启用 PWM 更新中断 | Motor PWM |
-| DMA1_CH3 | USART3 RX | SlaveMCU |
-| DMA1_CH4/CH5 | USART1 TX/RX | BlueSerial |
+| DMA1_CH3 | USART3 RX | slave_link |
+| DMA1_CH4/CH5 | USART1 TX/RX | bluetooth_serial |
 | DMA1_CH6 | USART2 RX | CRSF |
 
 主控未启用的 NRF24L01、本地 QMC5883P、OLED、PWM2 和重复 DMA_Serial 驱动已移除；从控对应驱动不变。
@@ -51,3 +51,4 @@
 PA2 用于连接主控 USART3 RX；PA3 是蜂鸣器，不配置为串口 RX。硬件接线必须共地。
 
 周期和时钟详见 [运行调度](RUNTIME_SCHEDULING.md)。
+

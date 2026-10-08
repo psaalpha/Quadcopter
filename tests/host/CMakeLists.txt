@@ -75,19 +75,21 @@ add_test(NAME flight_safety COMMAND flight_safety_test)
 # 控制算法是纯 C 计算：在电脑上验证符号、限幅和重置，不依赖电机硬件。
 add_executable(pid_control_test
     test_pid_control.c
-    ../../Master_MCU/Hardware/Pid.c
+    ../../Master_MCU/Control/pid_controller.c
 )
-target_include_directories(pid_control_test PRIVATE ../../Master_MCU/Hardware)
+target_include_directories(pid_control_test PRIVATE
+    ../../Master_MCU/Control
+)
 
 # 姿态模块只在此测试中使用一份最小 STM32 类型桩；不模拟传感器时序。
 add_executable(yaw_estimator_test
     test_yaw_estimator.c
-    ../../Master_MCU/User/hubu.c
+    ../../Master_MCU/Control/attitude_estimator.c
 )
 target_include_directories(yaw_estimator_test PRIVATE
     fakes
-    ../../Master_MCU/User
-    ../../Master_MCU/Hardware
+    ../../Master_MCU/Control
+    ../../Master_MCU/Drivers/Sensors
 )
 
 foreach(control_test pid_control_test yaw_estimator_test)
@@ -110,13 +112,18 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
         test_master_io.c
         fakes/serial/registers.c
         ../../Shared/Drivers/dma_rx.c
-        ../../Master_MCU/Hardware/BlueSerial.c
-        ../../Master_MCU/Hardware/SlaveMCU.c
-        ../../Master_MCU/Hardware/PWM4.c
+        ../../Master_MCU/Drivers/Communication/bluetooth_serial.c
+        ../../Master_MCU/Drivers/Communication/slave_link.c
+        ../../Master_MCU/BSP/motor_pwm.c
         ../../Shared/Protocol/inter_mcu_protocol.c
     )
     target_include_directories(master_io_test PRIVATE
-        fakes/serial ../../Master_MCU/Hardware ../../Master_MCU/BSP ../../Shared/Protocol ../../Shared/Drivers)
+        fakes/serial
+        ../../Master_MCU/Drivers/Communication
+        ../../Master_MCU/BSP
+        ../../Shared/Protocol
+        ../../Shared/Drivers
+    )
     target_compile_options(master_io_test PRIVATE
         -Wall -Wextra -Werror -pedantic -UNDEBUG -Wno-pointer-to-int-cast -fno-pie)
     target_link_options(master_io_test PRIVATE -no-pie)
@@ -136,17 +143,32 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
     add_executable(slave_io_test
         test_slave_io.c fakes/serial/registers.c
         ../../Shared/Drivers/dma_rx.c ../../Shared/Protocol/inter_mcu_protocol.c
-        ../../Slave_MCU/Hardware/OpticalFlow.c
-        ../../Slave_MCU/Hardware/slave_link.c ../../Slave_MCU/Hardware/exti.c)
+        ../../Slave_MCU/Drivers/Sensors/optical_flow.c
+        ../../Slave_MCU/Drivers/Communication/master_link.c ../../Slave_MCU/BSP/board_inputs.c)
     target_include_directories(slave_io_test PRIVATE
-        fakes/serial ../../Shared/Drivers ../../Shared/Protocol ../../Slave_MCU/Hardware)
+        fakes/serial
+        ../../Shared/Drivers
+        ../../Shared/Protocol
+        ../../Slave_MCU/BSP
+        ../../Slave_MCU/Drivers/Communication
+        ../../Slave_MCU/Drivers/Sensors
+    )
     add_executable(slave_app_test
         test_slave_app.c fakes/serial/registers.c
         ../../Slave_MCU/App/slave_app.c ../../Slave_MCU/App/slave_scheduler.c
         ../../Shared/Scheduling/periodic_tasks.c)
     target_include_directories(slave_app_test PRIVATE
-        fakes/serial ../../Slave_MCU/App ../../Slave_MCU/BSP ../../Slave_MCU/Hardware
-        ../../Shared/Protocol ../../Shared/Scheduling ../../Platform/STM32F1/System)
+        fakes/serial
+        ../../Slave_MCU/App
+        ../../Slave_MCU/BSP
+        ../../Slave_MCU/Drivers/Communication
+        ../../Slave_MCU/Drivers/Display
+        ../../Slave_MCU/Drivers/Sensors
+        ../../Slave_MCU/Drivers/Sensors/BMP390
+        ../../Shared/Protocol
+        ../../Shared/Scheduling
+        ../../Platform/STM32F1/System
+    )
     target_link_libraries(slave_app_test PRIVATE m)
     foreach(io_test scheduler_test slave_io_test slave_app_test)
         target_compile_options(${io_test} PRIVATE
@@ -157,3 +179,4 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang
     add_test(NAME slave_io COMMAND slave_io_test)
     add_test(NAME slave_app COMMAND slave_app_test)
 endif()
+

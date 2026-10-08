@@ -7,7 +7,7 @@
 static uint32_t last_cycles;
 static uint32_t cycles_per_ms;
 static uint32_t fraction_cycles;
-void MillisecondClock_Init(void)
+void millisecond_clock_init(void)
 {
     SystemCoreClockUpdate();
     cycles_per_ms = SystemCoreClock / 1000u;
@@ -16,7 +16,7 @@ void MillisecondClock_Init(void)
     CLOCK_DWT_CTRL |= 1u;
     last_cycles = CLOCK_DWT_CYCCNT;
 }
-uint32_t MillisecondClock_Elapsed(void)
+uint32_t millisecond_clock_elapsed_ms(void)
 {
     uint32_t now = CLOCK_DWT_CYCCNT;
     uint32_t delta = now - last_cycles;

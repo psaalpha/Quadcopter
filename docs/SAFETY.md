@@ -19,7 +19,7 @@ stateDiagram-v2
 只有 `ACTIVE` 状态允许写入混控结果。其他状态会：
 
 - 基础油门归零；
-- Roll/Pitch/Yaw 目标归零；
+- estimated_roll_deg/estimated_pitch_deg/estimated_yaw_deg 目标归零；
 - 清除 PID 输出、积分和滤波历史；
 - 四路 TIM4 输出写入最小比较值 `500`；
 - 失联时清除辅助通道状态。
@@ -51,3 +51,4 @@ CRSF 帧必须通过长度和 CRC8 DVB-S2 校验，才会刷新链路时间。
 | 主从 CRC 错误 | 不发布传感器数据，错误计数增加 |
 
 所有电机相关测试首先在拆除桨叶的情况下进行。
+

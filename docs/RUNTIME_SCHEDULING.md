@@ -90,13 +90,13 @@ CYCCNT 按 Cortex-M3 TRM DDI0337 寄存器配置；约 59 秒回绕前需至少�
 
 | 接口 | 内容 |
 |---|---|
-| `AppScheduler_GetOverrunCount()` | 主控各任务合并次数 |
-| `SlaveScheduler_GetOverruns()` | 从控各任务合并次数 |
-| `OpticalFlow_GetStats()` | 光流/测距帧数、格式错误、UART/DMA 错误、缓冲溢出、Flash 暂停次数 |
-| `SlaveLink_GetStats()` | 完成包数、busy 跳过、DMA 错误/超时、编码错误 |
-| `SlaveBoard_AdcErrors()` | ADC 初始化/转换超时 |
-| `AT7456E_GetSpiTimeouts()` | OSD SPI 就绪超时 |
-| `SlaveApp_GetStats()` | 气压读取错误、校准保存/失败、显示快照未完成即刷新 |
+| `app_scheduler_get_overrun_count()` | 主控各任务合并次数 |
+| `slave_scheduler_get_overruns()` | 从控各任务合并次数 |
+| `optical_flow_get_stats()` | 光流/测距帧数、格式错误、UART/DMA 错误、缓冲溢出、Flash 暂停次数 |
+| `master_link_get_stats()` | 完成包数、busy 跳过、DMA 错误/超时、编码错误 |
+| `slave_board_adc_errors()` | ADC 初始化/转换超时 |
+| `at7456e_get_spi_timeouts()` | OSD SPI 就绪超时 |
+| `slave_app_get_stats()` | 气压读取错误、校准保存/失败、显示快照未完成即刷新 |
 
 这些是可在调试器或调用接口读取的计数，不在中断或主循环高频打印日志。
 
@@ -110,14 +110,15 @@ CRSF 源码及解析逻辑未修改。主从 41 字节协议版本、字段、�
 
 ## 此次云端验证
 
-- 8 项主机回归通过：协议、安全状态、PID、Yaw、主控 IO、调度、从机 IO、从机应用编排。
+- 8 项主机回归通过：协议、安全状态、PID、estimated_yaw_deg、主控 IO、调度、从机 IO、从机应用编排。
 - 回归覆盖周期计数/合并/时间回绕、300ms 安全超时、DMA busy 不覆盖、完成由主循环消费、
   多帧/半帧/无 IDLE 接收、溢出恢复、Flash 暂停后重同步、完整校准脉冲、
   10 秒校准保存延迟和逐字符显示。
 - 两个 Keil XML 工程引用、共享源文件、校准页保留和 Markdown 链接检查通过。
 - 两个目标的所有 C 源文件通过 GCC + 真实 CMSIS/SPL 头文件的 C99 语法检查。
   原有 OLED 字体初始化括号、Bosch 文件未使用形参的 GCC 警告仍存在。
-  `Kalman.c` 的头文件大小写已对齐为 `Kalman.h`，消除 Linux 文件系统大小写差异。
+  `kalman_filter.c` 的头文件大小写已对齐为 `kalman_filter.h`，消除 Linux 文件系统大小写差异。
 - 本环境没有 Keil/ARMCC5、ARM GCC 或 CMake；上述回归用 GCC 直接编译执行。
   **没有完成 ARM 固件链接、体积检查或硬件时序测试；不能写成 Keil 构建成功。**
 - 回家后使用 [构建脚本](../tools/build_firmware.ps1) 构建两目标，再按 [测试说明](TESTING.md) 无桨台架验证。
+

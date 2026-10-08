@@ -14,21 +14,16 @@
 ## 工程结构
 
 ```text
-.
-├── Platform/STM32F1/       # 两颗 MCU 共用的 CMSIS、SPL 和系统服务
-├── Shared/Protocol/        # 与硬件无关的主从通信协议
-├── Master_MCU/
-│   ├── App/                # 调度与飞行安全策略
-│   ├── BSP/                # 板级配置和控制定时器
-│   ├── Hardware/           # 主控外设驱动与控制算法
-│   └── User/               # 启动入口和中断入口
-├── Slave_MCU/
-│   ├── Hardware/           # 传感器、显示和外设驱动
-│   └── User/               # 从控应用入口
-├── tests/host/             # 可在电脑上运行的 C 单元测试
-├── tools/                  # 构建和结构校验脚本
-└── docs/                   # 架构、协议、引脚、安全和构建说明
+Master_MCU/  Core / App / BSP / Control / Drivers
+Slave_MCU/   Core / App / BSP / Drivers
+Shared/      Protocol / Scheduling / Drivers
+Platform/STM32F1/  CMSIS / SPL / System
+tests/host/  主机单元测试和寄存器模型
+tools/       工程检查及 Keil 双目标构建脚本
+docs/        架构、命名、协议、引脚、调度和学习文档
 ```
+
+详细模块归属和重命名说明见 [项目结构与命名规范](docs/PROJECT_STRUCTURE.md)。BMP390 适配层与 Bosch 原厂文件统一放在 `Slave_MCU/Drivers/Sensors/BMP390/`。
 
 ## 快速验证
 
@@ -80,3 +75,4 @@ Keil/ARMCC 双目标构建：
 - [固件发布流程](docs/RELEASE.md)
 - [后续演进路线](docs/ROADMAP.md)
 - [协作规范](CONTRIBUTING.md)
+

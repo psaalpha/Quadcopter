@@ -24,7 +24,7 @@
 | 13 | 4 | Pressure | Pa，`int32_t` |
 | 17 | 2 | Temperature | 0.01 °C，`int16_t` |
 | 19 | 4 | Baro altitude | mm，`int32_t` |
-| 23 | 2 | Yaw | 0.01°，`uint16_t` |
+| 23 | 2 | estimated_yaw_deg | 0.01°，`uint16_t` |
 | 25 | 4 | Flow X | 原始积分值，`int32_t` |
 | 29 | 4 | Flow Y | 原始积分值，`int32_t` |
 | 33 | 2 | Flow distance | mm |
@@ -52,3 +52,4 @@ CRC 使用 CRC16-CCITT-FALSE：多项式 `0x1021`，初始值 `0xFFFF`，不反�
 - 只增加新的消息类型时保留现有版本，并分配新的 `Message type`。
 - 接收端必须先检查 magic、版本、类型、长度和 CRC，再发布数据。
 - Master/Slave 必须作为匹配版本一起烧录。
+

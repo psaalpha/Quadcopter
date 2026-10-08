@@ -1,6 +1,6 @@
 #include "slave_board.h"
 #include "millisecond_clock.h"
-#include "exti.h"
+#include "board_inputs.h"
 #define ADC_VREF 3.30f
 #define ADC_VOLT_DIVIDER 4.0f
 #define BUZZER_PORT GPIOA
@@ -12,7 +12,7 @@ static uint8_t battery_valid;
 static uint32_t adc_started_ms;
 static uint32_t adc_errors;
 static float battery_voltage;
-static void IWDG_Init(void)
+static void watchdog_init(void)
 {
     /* 调试时冻结 IWDG，避免断点导致复位 */
     DBGMCU_Config(DBGMCU_IWDG_STOP, ENABLE);
@@ -36,20 +36,20 @@ static void IWDG_Init(void)
 }
 
 /* 初始化 TIM3_CH3 舵机 PWM：PB0，50Hz，20ms 周期。 */
-static void Servo_Init(void)
+static void servo_init(void)
 {
-    GPIO_InitTypeDef GPIO_InitStructure;
+    GPIO_InitTypeDef gpio_config;
     TIM_TimeBaseInitTypeDef TIM_TimeBaseStructure;
-    TIM_OCInitTypeDef TIM_OCInitStructure;
+    TIM_OCInitTypeDef output_compare_config;
 
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
     RCC_APB1PeriphClockCmd(RCC_APB1Periph_TIM3, ENABLE);
 
     /* PB0 -> TIM3_CH3 */
-    GPIO_InitStructure.GPIO_Pin   = GPIO_Pin_0;
-    GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_AF_PP;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_Init(GPIOB, &GPIO_InitStructure);
+    gpio_config.GPIO_Pin   = GPIO_Pin_0;
+    gpio_config.GPIO_Mode  = GPIO_Mode_AF_PP;
+    gpio_config.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(GPIOB, &gpio_config);
 
     /* TIM3: 72MHz / 72 = 1MHz，ARR=20000-1 -> 20ms。 */
     TIM_TimeBaseStructure.TIM_Prescaler         = 72 - 1;
@@ -59,18 +59,18 @@ static void Servo_Init(void)
     TIM_TimeBaseStructure.TIM_RepetitionCounter = 0;
     TIM_TimeBaseInit(TIM3, &TIM_TimeBaseStructure);
 
-    TIM_OCInitStructure.TIM_OCMode      = TIM_OCMode_PWM1;
-    TIM_OCInitStructure.TIM_OutputState = TIM_OutputState_Enable;
-    TIM_OCInitStructure.TIM_Pulse       = 1500;     /* 默认中立位 1.5ms */
-    TIM_OCInitStructure.TIM_OCPolarity  = TIM_OCPolarity_High;
-    TIM_OC3Init(TIM3, &TIM_OCInitStructure);
+    output_compare_config.TIM_OCMode      = TIM_OCMode_PWM1;
+    output_compare_config.TIM_OutputState = TIM_OutputState_Enable;
+    output_compare_config.TIM_Pulse       = 1500;     /* 默认中立位 1.5ms */
+    output_compare_config.TIM_OCPolarity  = TIM_OCPolarity_High;
+    TIM_OC3Init(TIM3, &output_compare_config);
 
     TIM_OC3PreloadConfig(TIM3, TIM_OCPreload_Enable);
     TIM_ARRPreloadConfig(TIM3, ENABLE);
     TIM_Cmd(TIM3, ENABLE);
 }
 
-void SlaveBoard_SetServo(uint16_t pulse_us)
+void slave_board_set_servo(uint16_t pulse_us)
 {
     if (pulse_us < 500)  pulse_us = 500;
     if (pulse_us > 2500) pulse_us = 2500;
@@ -78,34 +78,34 @@ void SlaveBoard_SetServo(uint16_t pulse_us)
 }
 
 /* 初始化蜂鸣器：PA3，低电平驱动。 */
-static void Buzzer_Init(void)
+static void buzzer_init(void)
 {
-    GPIO_InitTypeDef GPIO_InitStructure;
+    GPIO_InitTypeDef gpio_config;
 
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
 
-    GPIO_InitStructure.GPIO_Pin   = BUZZER_PIN;
-    GPIO_InitStructure.GPIO_Mode  = GPIO_Mode_Out_PP;
-    GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
-    GPIO_Init(BUZZER_PORT, &GPIO_InitStructure);
+    gpio_config.GPIO_Pin   = BUZZER_PIN;
+    gpio_config.GPIO_Mode  = GPIO_Mode_Out_PP;
+    gpio_config.GPIO_Speed = GPIO_Speed_50MHz;
+    GPIO_Init(BUZZER_PORT, &gpio_config);
     GPIO_SetBits(BUZZER_PORT, BUZZER_PIN);
 }
 
 /* 初始化 ADC1_IN9：PB1 电池电压检测。 */
-static void ADC_Battery_Init(void)
+static void adc_battery_init(void)
 {
-    GPIO_InitTypeDef GPIO_InitStructure;
+    GPIO_InitTypeDef gpio_config;
     ADC_InitTypeDef ADC_InitStructure;
     uint32_t timeout;
 
     RCC_ADCCLKConfig(RCC_PCLK2_Div6); /* 72MHz / 6 = 12MHz, within 14MHz limit. */
     RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB | RCC_APB2Periph_ADC1, ENABLE);
 
-    GPIO_StructInit(&GPIO_InitStructure);
+    GPIO_StructInit(&gpio_config);
     /* PB1 模拟输入。 */
-    GPIO_InitStructure.GPIO_Pin  = GPIO_Pin_1;
-    GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AIN;
-    GPIO_Init(GPIOB, &GPIO_InitStructure);
+    gpio_config.GPIO_Pin  = GPIO_Pin_1;
+    gpio_config.GPIO_Mode = GPIO_Mode_AIN;
+    GPIO_Init(GPIOB, &gpio_config);
 
     /* ADC1 单次转换，软件触发。 */
     ADC_InitStructure.ADC_Mode               = ADC_Mode_Independent;
@@ -131,7 +131,7 @@ static void ADC_Battery_Init(void)
     adc_ready = 1u;
 }
 
-void SlaveBoard_StartTick(void)
+void slave_board_start_tick(void)
 {
     TIM_TimeBaseInitTypeDef time_base;
     NVIC_InitTypeDef interrupt_config;
@@ -148,26 +148,26 @@ void SlaveBoard_StartTick(void)
     interrupt_config.NVIC_IRQChannelSubPriority = 1u;
     interrupt_config.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&interrupt_config);
-    MillisecondClock_Init();
+    millisecond_clock_init();
     TIM_Cmd(TIM2, ENABLE);
 }
 
-void SlaveBoard_InitInterrupts(void) { NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2); }
-void SlaveBoard_Init(void)
+void slave_board_init_interrupts(void) { NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2); }
+void slave_board_init(void)
 {
-    Servo_Init();
-    ADC_Battery_Init();
-    Buzzer_Init();
-    EXTI_Inputs_Init();
-    IWDG_Init();
+    servo_init();
+    adc_battery_init();
+    buzzer_init();
+    board_inputs_init();
+    watchdog_init();
 }
-void SlaveBoard_FeedWatchdog(void) { IWDG_ReloadCounter(); }
-void SlaveBoard_SetLowBattery(uint8_t low)
+void slave_board_feed_watchdog(void) { IWDG_ReloadCounter(); }
+void slave_board_set_low_battery(uint8_t low)
 {
     if (low != 0u) GPIO_ResetBits(BUZZER_PORT, BUZZER_PIN);
     else GPIO_SetBits(BUZZER_PORT, BUZZER_PIN);
 }
-void SlaveBoard_RequestBattery(uint32_t now_ms)
+void slave_board_request_battery(uint32_t now_ms)
 {
     if (adc_ready == 0u || adc_pending != 0u) return;
     ADC_ClearFlag(ADC1, ADC_FLAG_EOC);
@@ -175,7 +175,7 @@ void SlaveBoard_RequestBattery(uint32_t now_ms)
     adc_pending = 1u;
     ADC_SoftwareStartConvCmd(ADC1, ENABLE);
 }
-void SlaveBoard_ProcessBattery(uint32_t now_ms)
+void slave_board_process_battery(uint32_t now_ms)
 {
     if (adc_pending == 0u) return;
     if (ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC) != RESET) {
@@ -190,6 +190,6 @@ void SlaveBoard_ProcessBattery(uint32_t now_ms)
         ADC_SoftwareStartConvCmd(ADC1, DISABLE);
     }
 }
-float SlaveBoard_BatteryVoltage(void) { return battery_voltage; }
-uint8_t SlaveBoard_BatteryValid(void) { return battery_valid; }
-uint32_t SlaveBoard_AdcErrors(void) { return adc_errors; }
+float slave_board_battery_voltage(void) { return battery_voltage; }
+uint8_t slave_board_battery_valid(void) { return battery_valid; }
+uint32_t slave_board_adc_errors(void) { return adc_errors; }

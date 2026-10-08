@@ -1,5 +1,5 @@
-#ifndef BOARD_CONFIG_H
-#define BOARD_CONFIG_H
+#ifndef MASTER_MCU_BSP_BOARD_CONFIG_H
+#define MASTER_MCU_BSP_BOARD_CONFIG_H
 
 /* Master control-loop timing. */
 #define BOARD_IMU_TASK_PERIOD_MS             2u

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-08 — SPL 目录与命名重构
+
+- 主从工程采用 Core/App/BSP/Drivers，主控算法归入 Control；保持 main.c 业务编排。
+- 统一项目自有英文文件名、API 和变量名，纠正 PID setter/getter 含义；协议字符串和运行逻辑保持不变。
+- BMP390 适配层与未修改的 Bosch 文件集中到 Slave_MCU/Drivers/Sensors/BMP390。
+- 同步 Keil 源文件、头文件路径、调试分组、CMake、测试和文档；清除 uvoptx 中原已不存在的文件引用。
+
+
 ## 2026-10-04 - Unify millisecond scheduling and refactor Slave services
 
 ### Changed
@@ -162,7 +170,7 @@
 
 ### Changed
 - Replaced the compiler-dependent packed structure and raw `float` transfer
-  between the slave and master with a 41-byte versioned protocol frame.
+  between the slave_sensor_data and master with a 41-byte versioned protocol frame.
 - Defined explicit little-endian integer fields and physical units for pressure,
   temperature, barometric altitude, yaw, optical flow, range, signal quality,
   battery voltage, sequence, timestamp, and sensor status flags.
@@ -174,7 +182,7 @@
   both Keil projects compile the same implementation.
 
 ### Compatibility
-- This is an intentional wire-protocol break. Master and slave firmware from
+- This is an intentional wire-protocol break. Master and slave_sensor_data firmware from
   this version must be flashed as a matched pair.
 - Application-facing master values retain their previous units: altitude in
   centimetres, yaw in degrees, flow range in millimetres.
@@ -186,7 +194,7 @@
 - Host test result: `1/1` passed with GCC 8.1.0 and warnings treated as errors.
 - ARMCC master result: `0 Error(s), 0 Warning(s)`; Code `28716`, RO-data `892`,
   RW-data `580`, ZI-data `2628` bytes.
-- ARMCC slave result: `0 Error(s), 0 Warning(s)`; Code `30122`, RO-data `2182`,
+- ARMCC slave_sensor_data result: `0 Error(s), 0 Warning(s)`; Code `30122`, RO-data `2182`,
   RW-data `104`, ZI-data `1736` bytes.
 
 ## 2026-07-25 - Share the STM32F1 platform layer
@@ -201,7 +209,7 @@
   eliminating 61 duplicate source and header files.
 
 ### Compatibility
-- The master and slave application, hardware, and user source trees remain
+- The master and slave_sensor_data application, hardware, and user source trees remain
   independent.
 - No control algorithm, interrupt timing, pin assignment, or wire protocol was
   changed in this milestone.
@@ -227,7 +235,7 @@
   four ESC outputs.
 - Added startup and reconnect throttle locking. Motor output remains inhibited
   until a valid RC frame is received with throttle at or below 5 percent.
-- Added `Drone_Motors_Stop()` to clear base throttle, cached motor mix values,
+- Added `pid_stop_motors()` to clear base throttle, cached motor mix values,
   PID outputs, integrators, and filter history so stale motor commands cannot be
   emitted after a stop request.
 - Fixed Bluetooth tuning so PID defaults are preserved until a valid parameter
@@ -258,13 +266,14 @@
 
 ### Changed
 - Added this changelog to record project-level changes alongside Git commits.
-- Protected interrupt-shared data in `Master_MCU/User/main.c`: `roll`, `pitch`, `yaw`, `rollRate`, `pitchRate`, `yawRate`, and `PWM_Flag` are now `volatile`.
-- Added short `__disable_irq()` snapshot sections when the main loop reads attitude, angular-rate, and slave-sensor data, avoiding partial reads while ISRs update shared values.
-- Enabled yaw mixing in `Master_MCU/Hardware/Pid.c`: `FL`/`BR` add `yaw_pid_out`, while `FR`/`BL` subtract it, so yaw PID now reaches all four motor outputs.
-- Added altitude PID control in `Drone_Altitude_Position_PID_Control()` using `slave.flow_altitude`, with output available through `Altitude_pid_Get()`.
-- Added position-hold PID calculations using `slave.flow_x` and `slave.flow_y`, with suggested roll and pitch target corrections available through `Position_roll_aim_Get()` and `Position_pitch_aim_Get()`.
-- Connected slave sensor snapshots in the master main loop for `flow_x`, `flow_y`, `flow_altitude`, `baro_altitude`, and `mag_yaw`, then calls the altitude/position PID routine.
-- Updated `Master_MCU/Hardware/Pid.h` with `stm32f10x.h` and altitude/position PID configuration and readback interfaces.
+- Protected interrupt-shared data in `Master_MCU/Core/main.c`: `roll`, `pitch`, `yaw`, `roll_rate`, `pitch_rate`, `yaw_rate`, and `PWM_Flag` are now `volatile`.
+- Added short `__disable_irq()` snapshot sections when the main loop reads attitude, angular-rate, and slave_sensor_data-sensor data, avoiding partial reads while ISRs update shared values.
+- Enabled yaw mixing in `Master_MCU/Control/pid_controller.c`: `FL`/`BR` add `yaw_pid_out`, while `FR`/`BL` subtract it, so yaw PID now reaches all four motor outputs.
+- Added altitude PID control in `pid_update_navigation()` using `slave_sensor_data.flow_altitude`, with output available through `pid_get_altitude_output()`.
+- Added position-hold PID calculations using `slave_sensor_data.flow_x` and `slave_sensor_data.flow_y`, with suggested roll and pitch target corrections available through `pid_get_position_roll_target()` and `pid_get_position_pitch_target()`.
+- Connected slave_sensor_data sensor snapshots in the master main loop for `flow_x`, `flow_y`, `flow_altitude`, `baro_altitude`, and `mag_yaw`, then calls the altitude/position PID routine.
+- Updated `Master_MCU/Control/pid_controller.h` with `stm32f10x.h` and altitude/position PID configuration and readback interfaces.
 
 ### Notes
 - Altitude and position PID default `Kp`, `Ki`, and `Kd` values are `0`, so they do not automatically alter throttle or remote attitude targets until tuned.
+

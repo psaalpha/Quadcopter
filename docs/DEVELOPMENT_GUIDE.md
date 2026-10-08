@@ -98,7 +98,8 @@ python tools/validate_project.py
 一个提交只完成一个目的，例如：
 
 - `Document driver interface conventions`
-- `Add slave protocol freshness tests`
-- `Move battery ADC setup into slave BSP`
+- `Add slave_sensor_data protocol freshness tests`
+- `Move battery ADC setup into slave_sensor_data BSP`
 
 不要把算法调参、驱动重构、目录迁移和格式化混在一个提交中。
+

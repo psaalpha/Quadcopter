@@ -1,5 +1,5 @@
-#ifndef INTER_MCU_PROTOCOL_H
-#define INTER_MCU_PROTOCOL_H
+#ifndef SHARED_PROTOCOL_INTER_MCU_PROTOCOL_H
+#define SHARED_PROTOCOL_INTER_MCU_PROTOCOL_H
 
 #include <stdint.h>
 
@@ -35,7 +35,7 @@ typedef struct
     uint16_t flow_distance_mm;
     uint8_t  flow_quality;
     uint16_t battery_mv;
-} InterMcuSensorData;
+} inter_mcu_sensor_data_t;
 
 typedef enum
 {
@@ -47,18 +47,18 @@ typedef enum
     INTER_MCU_DECODE_MESSAGE_TYPE,
     INTER_MCU_DECODE_PAYLOAD_SIZE,
     INTER_MCU_DECODE_CRC
-} InterMcuDecodeStatus;
+} inter_mcu_decode_status_t;
 
-uint16_t InterMcu_Crc16Ccitt(const uint8_t *data, uint16_t length);
+uint16_t inter_mcu_crc16_ccitt(const uint8_t *data, uint16_t length);
 
-uint8_t InterMcu_EncodeSensorFrame(const InterMcuSensorData *data,
+uint8_t inter_mcu_encode_sensor_frame(const inter_mcu_sensor_data_t *data,
                                   uint8_t *frame,
                                   uint16_t frame_capacity);
 
-InterMcuDecodeStatus InterMcu_DecodeSensorFrame(
+inter_mcu_decode_status_t inter_mcu_decode_sensor_frame(
     const uint8_t *frame,
     uint16_t frame_length,
-    InterMcuSensorData *data);
+    inter_mcu_sensor_data_t *data);
 
 #ifdef __cplusplus
 }
