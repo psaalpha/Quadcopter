@@ -7,7 +7,7 @@
       Code (inc. data)   RO Data    RW Data    ZI Data      Debug   Object Name
       Code (inc. data)   RO Data    RW Data    ZI Data      Debug   Library Member Name
       Code (inc. data)   RO Data    RW Data    ZI Data      Debug   Library Name
-      Code (inc. data)   RO Data    RW Data    ZI Data      Debug   
+      Code (inc. data)   RO Data    RW Data    ZI Data      Debug
      30280       1962       2016        344      10696     711617   Grand Totals
     Total RO  Size (Code + RO Data)                32296 (  31.54kB)
     Total RW  Size (RW Data + ZI Data)             11040 (  10.78kB)
