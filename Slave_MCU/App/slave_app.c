@@ -26,6 +26,8 @@ static uint16_t packet_sequence;
 static float pressure, temperature, relative_altitude_m, battery_voltage;
 static struct bmp3_dev barometer;
 static slave_app_stats_t statistics;
+/* 显示任务独占写，采集/调试侧仅读一个对齐32位诊断值，不共享显示缓冲。 */
+static volatile uint32_t display_restart_count;
 static char display_lines[4][17];
 static char displayed_lines[4][16];
 static uint8_t display_cursor = 64u;
@@ -130,7 +132,9 @@ void slave_app_init(void)
     baro_available = barometer_init();
     mag_ok = qmc5883p_init() == 0u;
     slave_board_init();
+#ifndef QUADCOPTER_FREERTOS
     slave_board_start_tick();
+#endif
 }
 static void process_inputs(uint32_t now_ms)
 {
@@ -168,7 +172,9 @@ static void process_calibration(uint32_t now_ms)
         calib_state = CALIB_SAVE_PENDING;
     }
     if (calib_state == CALIB_SAVE_PENDING && master_link_is_busy() == 0u) {
+#ifndef QUADCOPTER_FREERTOS
         slave_board_feed_watchdog();
+#endif
         optical_flow_pause(); /* Flash may mask IRQs longer than one DMA ring. */
         if (qmc5883p_calibrate_end() == 0u) statistics.calibration_saved++;
         else statistics.calibration_errors++;
@@ -247,32 +253,45 @@ static void prepare_display_line(uint8_t row, const char *text)
     while (i < 16u) line[i++] = ' ';
     line[16] = '\0';
 }
-static void run_display_task(uint32_t now_ms)
+void slave_app_capture_display(slave_display_snapshot_t *snapshot)
+{
+    uint32_t elapsed = slave_scheduler_now_ms() - calib_started_ms;
+    optical_flow_get_snapshot(&snapshot->flow);
+    snapshot->yaw = qmc5883p_yaw_deg;
+    snapshot->temperature = temperature;
+    snapshot->battery = battery_voltage;
+    snapshot->altitude_m = relative_altitude_m;
+    snapshot->baro_valid = baro_valid;
+    snapshot->calibrating = calib_state != CALIB_IDLE;
+    snapshot->calibration_remaining_ms = elapsed < SLAVE_CALIBRATION_MS ? SLAVE_CALIBRATION_MS - elapsed : 0u;
+}
+/* 显示任务独占 display_* / OLED / SPI2；snapshot是队列复制的值，
+ * 不是指向采集任务栈的指针。切换到采集任务时，快照仍然有效。
+ */
+static void prepare_display(const slave_display_snapshot_t *snapshot)
 {
     char text[40];
-    optical_flow_data_t flow;
-    if (display_cursor < 64u || osd_step < 4u) statistics.display_restarts++;
-    optical_flow_get_snapshot(&flow);
+    optical_flow_data_t flow = snapshot->flow;
+    if (display_cursor < 64u || osd_step < 4u) display_restart_count++;
     display_flow = flow;
-    display_yaw = qmc5883p_yaw_deg;
-    display_temperature = temperature;
-    display_battery = battery_voltage;
+    display_yaw = snapshot->yaw;
+    display_temperature = snapshot->temperature;
+    display_battery = snapshot->battery;
     display_cursor = 0u;
     osd_step = 0u;
-    if (baro_valid != 0u) {
-        snprintf(text, sizeof(text), "T:%.1fC          ", (double)temperature);
+    if (snapshot->baro_valid != 0u) {
+        snprintf(text, sizeof(text), "T:%.1fC          ", (double)snapshot->temperature);
         prepare_display_line(1, text);
-        snprintf(text, sizeof(text), "H:%.1fcm        ", (double)relative_altitude_m * 100.0);
+        snprintf(text, sizeof(text), "H:%.1fcm        ", (double)snapshot->altitude_m * 100.0);
         prepare_display_line(2, text);
     } else {
         prepare_display_line(1, "BMP390 ERR");
         prepare_display_line(2, "H: invalid");
     }
-    snprintf(text, sizeof(text), "Yaw:%.1f        ", (double)qmc5883p_yaw_deg);
+    snprintf(text, sizeof(text), "Yaw:%.1f        ", (double)snapshot->yaw);
     prepare_display_line(3, text);
-    if (calib_state != CALIB_IDLE) {
-        uint32_t elapsed = now_ms - calib_started_ms;
-        uint32_t remaining = elapsed < SLAVE_CALIBRATION_MS ? SLAVE_CALIBRATION_MS - elapsed : 0u;
+    if (snapshot->calibrating != 0u) {
+        uint32_t remaining = snapshot->calibration_remaining_ms;
         snprintf(text, sizeof(text), "CAL:%lu s       ", (unsigned long)((remaining + 999u) / 1000u));
     } else snprintf(text, sizeof(text), "D:%.1fcm F:%ld", (double)flow.distance / 10.0, (long)flow.flow_x);
     prepare_display_line(4, text);
@@ -303,10 +322,17 @@ static void process_display(void)
         }
     }
 }
+void slave_app_display_step(const slave_display_snapshot_t *snapshot)
+{
+    if (snapshot != 0) prepare_display(snapshot);
+    process_display(); /* 一次仅一个OSD字段或OLED字符，然后让出CPU */
+}
 void slave_app_process(void)
 {
     uint32_t now_ms = slave_scheduler_now_ms();
+#ifndef QUADCOPTER_FREERTOS
     slave_board_feed_watchdog();
+#endif
     master_link_process(now_ms);
     slave_board_process_battery(now_ms);
     optical_flow_process(now_ms);
@@ -314,7 +340,23 @@ void slave_app_process(void)
     process_calibration(now_ms);
     now_ms = slave_scheduler_now_ms(); /* Flash save may have advanced the clock. */
     if (slave_scheduler_take(SLAVE_TASK_SENSORS) != 0u) run_sensor_task(now_ms);
-    if (slave_scheduler_take(SLAVE_TASK_DISPLAY) != 0u) run_display_task(slave_scheduler_now_ms());
+    if (slave_scheduler_take(SLAVE_TASK_DISPLAY) != 0u) {
+        slave_display_snapshot_t snapshot;
+        slave_app_capture_display(&snapshot);
+#ifdef QUADCOPTER_FREERTOS
+        slave_rtos_submit_display(&snapshot); /* 零等待覆盖旧帧，采集不等显示 */
+#else
+        prepare_display(&snapshot);
+#endif
+    }
+#ifndef QUADCOPTER_FREERTOS
     process_display();
+#endif
 }
-void slave_app_get_stats(slave_app_stats_t *stats) { if (stats != 0) *stats = statistics; }
+void slave_app_get_stats(slave_app_stats_t *stats)
+{
+    if (stats != 0) {
+        *stats = statistics;
+        stats->display_restarts = display_restart_count;
+    }
+}

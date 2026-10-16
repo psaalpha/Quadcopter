@@ -1,3 +1,5 @@
+#include "rtos_support.h"
+#include "task_health.h"
 #include "stm32f10x.h"
 #include "Delay.h"
 #include "mpu6050.h"
@@ -17,7 +19,22 @@
 #include "millisecond_clock.h"
 #include "inter_mcu_protocol.h"
 
-/* Application state, owned by the main loop unless marked volatile. */
+/* 控制数据仅由 control_task 写入。volatile 只说明可能被 ISR/调试器观察，
+ * 不能替代互斥：蓝牙任务禁止直接改 PID，也不直接读取这些多字段状态。 */
+typedef struct { uint32_t mask; float gain[9]; } tuning_command_t;
+static QueueHandle_t tuning_queue, telemetry_queue;
+static StaticQueue_t tuning_queue_cb, telemetry_queue_cb;
+static uint8_t tuning_storage[4u * sizeof(tuning_command_t)];
+static uint8_t telemetry_storage[sizeof(float)];
+static StaticTask_t control_cb, background_cb;
+static StackType_t control_stack[768], background_stack[512];
+static TaskHandle_t control_handle, background_handle;
+static volatile uint32_t background_progress_ms, control_progress_ms;
+static uint32_t next_stack_sample_ms;
+/* 调试器可观察：单位分别是核周期、32位栈字；不代表已测得 WCET。 */
+volatile uint32_t master_max_step_cycles;
+volatile UBaseType_t master_control_stack_free, master_background_stack_free;
+
 volatile float roll,pitch,yaw;
 volatile float roll_rate,pitch_rate,yaw_rate;
 uint8_t control_throttle_percent;
@@ -138,6 +155,7 @@ void system_clock_configure(void)
 
 	/* 复位时钟配置 */
 	RCC_DeInit();
+	SystemCoreClockUpdate();
 
 	/* 启动外部高速晶振 HSE */
 	RCC_HSEConfig(RCC_HSE_ON);
@@ -238,10 +256,10 @@ static void flight_control_run_angle_task(void)
 	pid_update_angle_loop(roll_value, pitch_value, yaw_value);
 }
 
-static void telemetry_send_pitch(void)
+static void telemetry_send_pitch(float pitch_snapshot)
 {
 	uint16_t index = 0u;
-	int32_t angle_value = (int32_t)(pitch * 10.0f);
+	int32_t angle_value = (int32_t)(pitch_snapshot * 10.0f);
 
 	if(angle_value > 9999) angle_value = 9999;
 	if(angle_value < -9999) angle_value = -9999;
@@ -280,12 +298,11 @@ static void telemetry_send_pitch(void)
 	bluetooth_serial_send_dma(telemetry_buffer, index);
 }
 
-/* 100ms telemetry task, independent of the motor PWM timer. */
+/* 长度1邮箱：遥测只关心最新姿态，满时覆盖旧快照，绝不等待 UART。 */
 static void flight_control_run_telemetry_task(void)
 {
-    board_led1_on();
-    telemetry_send_pitch();
-    board_led1_off();
+    float snapshot = pitch;
+    xQueueOverwrite(telemetry_queue, &snapshot);
 }
 
 static void flight_control_handle_rc_frame(void)
@@ -410,7 +427,7 @@ static void flight_control_refresh_slave_data(void)
 		return;
 	}
 
-	/* slave_link_process publishes data in this same main-loop context. */
+	/* slave_link_process 和本函数都在唯一 control_task 内，不存在跨任务撕裂。 */
 	slave_sensor_data.updated = 0u;
 	flow_x_snapshot = slave_sensor_data.flow_x;
 	flow_y_snapshot = slave_sensor_data.flow_y;
@@ -496,30 +513,111 @@ static void flight_control_refresh_slave_data(void)
 	flight_control_apply_targets();
 }
 
+/* 唯一 PID 写入者；每次最多一条命令，空队列立即返回。
+ * FIFO保存命令顺序；后台先检查剩余容量，满时保留原DMA字节等待后续轮次。
+ */
 static void flight_control_update_pid_tuning(void)
 {
-	uint32_t pid_update_mask;
-
-	if(!bluetooth_serial_process()) return;
-	pid_update_mask = bluetooth_serial_parse_parameters();
-
-	if(pid_update_mask & PID_PARAM_UPDATE_PKP) pid_set_pitch_kp(bluetooth_serial_get_pitch_kp());
-	if(pid_update_mask & PID_PARAM_UPDATE_PKI) pid_set_pitch_ki(bluetooth_serial_get_pitch_ki());
-	if(pid_update_mask & PID_PARAM_UPDATE_PKD) pid_set_pitch_kd(bluetooth_serial_get_pitch_kd() * 0.01f);
-	if(pid_update_mask & PID_PARAM_UPDATE_RKP) pid_set_roll_kp(bluetooth_serial_get_roll_kp());
-	if(pid_update_mask & PID_PARAM_UPDATE_RKI) pid_set_roll_ki(bluetooth_serial_get_roll_ki());
-	if(pid_update_mask & PID_PARAM_UPDATE_RKD) pid_set_roll_kd(bluetooth_serial_get_roll_kd() * 0.01f);
-	if(pid_update_mask & PID_PARAM_UPDATE_YKP) pid_set_yaw_kp(bluetooth_serial_get_yaw_kp());
-	if(pid_update_mask & PID_PARAM_UPDATE_YKI) pid_set_yaw_ki(bluetooth_serial_get_yaw_ki());
-	if(pid_update_mask & PID_PARAM_UPDATE_YKD) pid_set_yaw_kd(bluetooth_serial_get_yaw_kd());
+    tuning_command_t command;
+    if (xQueueReceive(tuning_queue, &command, 0u) != pdPASS) return;
+    if (command.mask & PID_PARAM_UPDATE_PKP) pid_set_pitch_kp(command.gain[0]);
+    if (command.mask & PID_PARAM_UPDATE_PKI) pid_set_pitch_ki(command.gain[1]);
+    if (command.mask & PID_PARAM_UPDATE_PKD) pid_set_pitch_kd(command.gain[2]);
+    if (command.mask & PID_PARAM_UPDATE_RKP) pid_set_roll_kp(command.gain[3]);
+    if (command.mask & PID_PARAM_UPDATE_RKI) pid_set_roll_ki(command.gain[4]);
+    if (command.mask & PID_PARAM_UPDATE_RKD) pid_set_roll_kd(command.gain[5]);
+    if (command.mask & PID_PARAM_UPDATE_YKP) pid_set_yaw_kp(command.gain[6]);
+    if (command.mask & PID_PARAM_UPDATE_YKI) pid_set_yaw_ki(command.gain[7]);
+    if (command.mask & PID_PARAM_UPDATE_YKD) pid_set_yaw_kd(command.gain[8]);
 }
 
+void rtos_board_emergency_stop(void)
+{
+    motor_pwm_set_minimum_output();
+}
+static void master_background_task(void *argument)
+{
+    (void)argument;
+    for (;;) {
+        float snapshot;
+        if (xQueueReceive(telemetry_queue, &snapshot, 0u) == pdPASS) {
+            board_led1_on();
+            telemetry_send_pitch(snapshot);
+            board_led1_off();
+        }
+        if (uxQueueSpacesAvailable(tuning_queue) != 0u && bluetooth_serial_process()) {
+            tuning_command_t command;
+            command.mask = bluetooth_serial_parse_parameters();
+            command.gain[0] = bluetooth_serial_get_pitch_kp();
+            command.gain[1] = bluetooth_serial_get_pitch_ki();
+            command.gain[2] = bluetooth_serial_get_pitch_kd() * 0.01f;
+            command.gain[3] = bluetooth_serial_get_roll_kp();
+            command.gain[4] = bluetooth_serial_get_roll_ki();
+            command.gain[5] = bluetooth_serial_get_roll_kd() * 0.01f;
+            command.gain[6] = bluetooth_serial_get_yaw_kp();
+            command.gain[7] = bluetooth_serial_get_yaw_ki();
+            command.gain[8] = bluetooth_serial_get_yaw_kd();
+            configASSERT(xQueueSend(tuning_queue, &command, 0u) == pdPASS);
+        }
+        background_progress_ms = system_time_ms;
+        master_background_stack_free = uxTaskGetStackHighWaterMark(NULL);
+        /* 主动阻塞：否则后台任务也会让 idle 永远不能运行。 */
+        vTaskDelay(pdMS_TO_TICKS(1u));
+    }
+}
+static void master_control_task(void *argument)
+{
+    (void)argument;
+    rtos_service_started(control_handle);
+    control_progress_ms = system_time_ms;
+    board_control_timers_init();
+    for (;;) {
+        uint32_t events;
+        uint32_t started;
+        uint32_t duration;
+        /* 没有事件时进入 Blocked，不占 CPU。通知位取走后新 ISR 仍能置位。
+         * 等待不等于业务阻塞：只有循环顶部可等待，IMU->PID->CCR 中途不等待。
+         */
+        xTaskNotifyWait(0u, 0xffffffffu, &events, portMAX_DELAY);
+        (void)events;
+        started = *((volatile uint32_t *)0xE0001004u);
+        /* 固定dt=2ms的算法不能靠补跑旧样本追赶。出现积压就停机复位，
+         * 诊断计数保留在调试器，须查清实际总线/算法耗时后再做台架测试。
+         */
+        if (app_scheduler_get_overrun_count(APP_TASK_IMU_UPDATE) != 0u) rtos_fault_stop();
+        /* 先检查旧遥控是否过期，再处理新帧，确保长停顿后的高油门帧
+         * 必须经过 LINK_LOSS -> RECOVERY_LOCK，不会沿用旧ACTIVE状态。 */
+        flight_control_check_failsafe();
+        if (app_scheduler_take(APP_TASK_RC_SERVICE)) flight_control_service_rc();
+        flight_control_check_failsafe();
+        if (app_scheduler_take(APP_TASK_IMU_UPDATE)) flight_control_run_imu_task();
+        if (app_scheduler_take(APP_TASK_ANGLE_CONTROL)) flight_control_run_angle_task();
+        slave_link_process(); /* 每次最多64字节；不等待从控回复 */
+        flight_control_refresh_slave_data();
+        flight_control_check_navigation_timeout();
+        flight_control_update_pid_tuning();
+        flight_control_update_indicators();
+        if (app_scheduler_take(APP_TASK_TELEMETRY)) flight_control_run_telemetry_task();
+        control_progress_ms = system_time_ms;
+        /* 只在控制步骤和后台都持续推进时喂狗，禁止在 tick/idle 中无条件喂狗。 */
+        if (task_health_all_fresh(system_time_ms, control_progress_ms,
+                                  background_progress_ms, 100u)) IWDG_ReloadCounter();
+        /* 水位查询会扫描栈填充值，降到1Hz，避免每1ms扫描整个任务栈。 */
+        if ((uint32_t)(system_time_ms - next_stack_sample_ms) >= 1000u) {
+            next_stack_sample_ms = system_time_ms;
+            master_control_stack_free = uxTaskGetStackHighWaterMark(NULL);
+        }
+        duration = *((volatile uint32_t *)0xE0001004u) - started;
+        if (duration > master_max_step_cycles) master_max_step_cycles = duration;
+    }
+}
 
 int main(void)
 {
 	Delay_us(500);   /* 给电源和传感器预留稳定时间 */
 	system_clock_configure();
-	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2);
+	SystemCoreClockUpdate();
+	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4);
 	app_scheduler_init();
 	flight_safety_init(&flight_safety);
 	board_led_init();
@@ -527,43 +625,26 @@ int main(void)
 	kalman_init_roll();
 	kalman_init_pitch();
 	bluetooth_serial_init();
-	watchdog_init();
 	crsf_init();
 	slave_link_init();
 	motor_pwm_init();
 	flight_control_hold_safe();
-	board_control_timers_init();
 
-	while (1)
-	{
-		IWDG_ReloadCounter();
-
-		if(app_scheduler_take(APP_TASK_RC_SERVICE))
-		{
-			flight_control_service_rc();
-		}
-		flight_control_check_failsafe();
-		slave_link_process();
-		flight_control_refresh_slave_data();
-		flight_control_check_navigation_timeout();
-
-		if(app_scheduler_take(APP_TASK_IMU_UPDATE))
-		{
-			flight_control_run_imu_task();
-		}
-
-		if(app_scheduler_take(APP_TASK_ANGLE_CONTROL))
-		{
-			flight_control_run_angle_task();
-		}
-
-		if(app_scheduler_take(APP_TASK_TELEMETRY))
-		{
-			flight_control_run_telemetry_task();
-		}
-		flight_control_update_indicators();
-		flight_control_update_pid_tuning();
-	}
+    tuning_queue = xQueueCreateStatic(4u, sizeof(tuning_command_t), tuning_storage, &tuning_queue_cb);
+    telemetry_queue = xQueueCreateStatic(1u, sizeof(float), telemetry_storage, &telemetry_queue_cb);
+    configASSERT(tuning_queue != NULL && telemetry_queue != NULL);
+    /* 栈深度单位是32位字：768=3072B，512=2048B，另有1024B MSP。
+     * 优先级5控制 > 2蓝牙 > 0 idle。栈余量必须在真实最坏路径量测。
+     */
+    control_handle = xTaskCreateStatic(master_control_task, "control", 768u, NULL, 5u,
+                                       control_stack, &control_cb);
+    background_handle = xTaskCreateStatic(master_background_task, "bluetooth", 512u, NULL, 2u,
+                                          background_stack, &background_cb);
+    configASSERT(control_handle != NULL && background_handle != NULL);
+    watchdog_init();
+    vTaskStartScheduler();
+    rtos_fault_stop(); /* 静态内存下仍检查调度器异常返回 */
+    return 0;
 }
 
 /* 1ms ISR: timestamp accounting and task notification only. */
@@ -576,5 +657,10 @@ void TIM2_IRQHandler(void)
         elapsed_ms = millisecond_clock_elapsed_ms();
         system_time_ms += elapsed_ms;
         app_scheduler_tick_from_isr(elapsed_ms);
+        /* 独立于任务的10ms停滞兜底：仅安全硬件写入，不在ISR做PID/浮点。
+         * 故障后不返回任务，不会出现ISR写最小值后任务再写回旧混控的问题。
+         */
+        if ((uint32_t)(system_time_ms - control_progress_ms) >= 10u) rtos_fault_stop();
+        rtos_notify_service_from_isr(RTOS_EVENT_TICK);
     }
 }

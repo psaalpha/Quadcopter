@@ -17,7 +17,7 @@
 
 #define CRSF_MAX_FRAME_LEN         64u     /* Max frame payload length */
 #define CRSF_RC_CHANNELS_PAYLOAD   22u     /* 16 channels × 11 bits = 22 bytes */
-#define CRSF_DMA_BUF_SIZE          128u    /* DMA ring buffer size */
+#define CRSF_DMA_BUF_SIZE          512u    /* 420k满线约12.2ms，必须及时消费 */
 
 #define CRSF_RC_CH_MIN             172u    /* ~1000us: 172 = 988us */
 #define CRSF_RC_CH_MID             992u    /* ~1500us */
@@ -38,5 +38,6 @@ extern volatile uint32_t crsf_crc_error_count;
  * ============================================ */
 void crsf_init(void);
 void crsf_process(void);
+uint32_t crsf_get_rx_overruns(void);
 
 #endif /* MASTER_MCU_DRIVERS_COMMUNICATION_CRSF_H */

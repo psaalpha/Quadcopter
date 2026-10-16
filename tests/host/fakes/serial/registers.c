@@ -1,7 +1,7 @@
 #include "stm32f10x.h"
 #include <string.h>
 USART_TypeDef fake_usart1, fake_usart2, fake_usart3;
-DMA_Channel_TypeDef fake_dma3, fake_dma4, fake_dma5, fake_dma7;
+DMA_Channel_TypeDef fake_dma3, fake_dma4, fake_dma5, fake_dma6, fake_dma7;
 GPIO_TypeDef fake_gpioa, fake_gpiob;
 TIM_TypeDef fake_tim4;
 uint32_t fake_dma_flags, fake_interrupt_mask;

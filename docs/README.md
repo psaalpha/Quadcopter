@@ -1,3 +1,5 @@
+本分支先读[FreeRTOS迁移教学](FREERTOS_MIGRATION.md)和[本次验证记录](FREERTOS_VALIDATION.md)。
+
 # 工程文档索引
 
 当前分支的主从频率、DMA 和中断边界见 [运行调度整理](RUNTIME_SCHEDULING.md)。

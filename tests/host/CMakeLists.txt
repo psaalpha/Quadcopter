@@ -3,6 +3,27 @@ cmake_minimum_required(VERSION 3.16)
 project(quadcopter_host_tests C)
 
 enable_testing()
+include_directories(../../Platform/FreeRTOS/Config)
+
+add_executable(task_health_test test_task_health.c ../../Shared/Scheduling/task_health.c)
+target_include_directories(task_health_test PRIVATE ../../Shared/Scheduling)
+if(MSVC)
+    target_compile_options(task_health_test PRIVATE /W4 /WX /UNDEBUG)
+else()
+    target_compile_options(task_health_test PRIVATE -Wall -Wextra -Werror -pedantic -UNDEBUG)
+endif()
+add_test(NAME task_health COMMAND task_health_test)
+
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    add_executable(crsf_io_test test_crsf_io.c fakes/serial/registers.c
+        ../../Shared/Drivers/dma_rx.c ../../Master_MCU/Drivers/Communication/crsf.c)
+    target_include_directories(crsf_io_test PRIVATE fakes/serial ../../Shared/Drivers
+        ../../Master_MCU/Drivers/Communication)
+    target_compile_options(crsf_io_test PRIVATE -Wall -Wextra -Werror -pedantic
+        -UNDEBUG -Wno-pointer-to-int-cast -fno-pie)
+    target_link_options(crsf_io_test PRIVATE -no-pie)
+    add_test(NAME crsf_io COMMAND crsf_io_test)
+endif()
 
 add_executable(
     inter_mcu_protocol_test

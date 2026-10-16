@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-10-16 FreeRTOS 学习迁移
+
+- 从 `codex/resume-study-spl@3d4a73d9` 创建独立功能分支，不改写原分支或main。
+- 固定FreeRTOS-Kernel V11.1.0最小源码子集，双MCU使用静态任务/队列，无运行期动态分配。
+- 主控控制单写者与蓝牙后台分离，从控采集通信与显示分离；沿用原周期相位和41字节协议。
+- SysTick交给内核，DWT用于驱动微秒延时；修正NVIC Group_4与FromISR优先级边界。
+- CRSF使用512B带HT/TC绕圈记账DMA ring；新增溢出/TE/UART错误后的丢弃和重同步。
+- 保留300ms RC失联、低油门恢复锁、200ms导航超时；新增控制积压/10ms停滞的最小输出停机、
+  CPU异常和栈溢出停机，以及双任务心跳约束的本地IWDG喂狗。
+- Keil默认启用-O2/MicroLIB以通过32KB免费版链接；完整C库配置超限记录保留。
+- 新增中文迁移教学、资源报告、CRSF/看门狗回归和内核完整性/IRQ/向量检查。
+- 尚未完成上板、时序、栈水位、无桨台架及飞行验证。
+
 ## 2026-10-08 — SPL 目录与命名重构
 
 - 主从工程采用 Core/App/BSP/Drivers，主控算法归入 Control；保持 main.c 业务编排。

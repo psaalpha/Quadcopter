@@ -1418,4 +1418,12 @@
       <bShared>0</bShared>
     </File>
   </Group>
+  <Group><GroupName>FreeRTOS</GroupName><tvExp>0</tvExp><tvExpOptDlg>0</tvExpOptDlg><cbSel>0</cbSel><RteFlg>0</RteFlg>
+    <File><GroupNumber>14</GroupNumber><FileNumber>97</FileNumber><FileType>1</FileType><tvExp>0</tvExp><tvExpOptDlg>0</tvExpOptDlg><bDave2>0</bDave2><PathWithFileName>..\Platform\FreeRTOS\Kernel\tasks.c</PathWithFileName><FilenameWithoutPath>tasks.c</FilenameWithoutPath><RteFlg>0</RteFlg><bShared>0</bShared></File>
+    <File><GroupNumber>14</GroupNumber><FileNumber>98</FileNumber><FileType>1</FileType><tvExp>0</tvExp><tvExpOptDlg>0</tvExpOptDlg><bDave2>0</bDave2><PathWithFileName>..\Platform\FreeRTOS\Kernel\queue.c</PathWithFileName><FilenameWithoutPath>queue.c</FilenameWithoutPath><RteFlg>0</RteFlg><bShared>0</bShared></File>
+    <File><GroupNumber>14</GroupNumber><FileNumber>99</FileNumber><FileType>1</FileType><tvExp>0</tvExp><tvExpOptDlg>0</tvExpOptDlg><bDave2>0</bDave2><PathWithFileName>..\Platform\FreeRTOS\Kernel\list.c</PathWithFileName><FilenameWithoutPath>list.c</FilenameWithoutPath><RteFlg>0</RteFlg><bShared>0</bShared></File>
+    <File><GroupNumber>14</GroupNumber><FileNumber>100</FileNumber><FileType>1</FileType><tvExp>0</tvExp><tvExpOptDlg>0</tvExpOptDlg><bDave2>0</bDave2><PathWithFileName>..\Platform\FreeRTOS\Kernel\portable\RVDS\ARM_CM3\port.c</PathWithFileName><FilenameWithoutPath>port.c</FilenameWithoutPath><RteFlg>0</RteFlg><bShared>0</bShared></File>
+    <File><GroupNumber>14</GroupNumber><FileNumber>101</FileNumber><FileType>1</FileType><tvExp>0</tvExp><tvExpOptDlg>0</tvExpOptDlg><bDave2>0</bDave2><PathWithFileName>..\Platform\FreeRTOS\Config\rtos_support.c</PathWithFileName><FilenameWithoutPath>rtos_support.c</FilenameWithoutPath><RteFlg>0</RteFlg><bShared>0</bShared></File>
+    <File><GroupNumber>14</GroupNumber><FileNumber>102</FileNumber><FileType>1</FileType><tvExp>0</tvExp><tvExpOptDlg>0</tvExpOptDlg><bDave2>0</bDave2><PathWithFileName>..\Shared\Scheduling\task_health.c</PathWithFileName><FilenameWithoutPath>task_health.c</FilenameWithoutPath><RteFlg>0</RteFlg><bShared>0</bShared></File>
+  </Group>
 </ProjectOpt>

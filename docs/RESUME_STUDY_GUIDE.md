@@ -1,3 +1,5 @@
+> 本文保留原裸机基线的说明/历史记录。本分支当前FreeRTOS架构以[迁移教学](FREERTOS_MIGRATION.md)与[本次验证](FREERTOS_VALIDATION.md)为准。
+
 # 简历项目复习导读（SPL 裸机学习分支）
 
 本导读对应 `codex/resume-study-spl`，从 `develop` 派生。目标是沿着真实代码复习双 STM32 飞控，不把计划中的技术写成已经落地的功能。主从 MCU 均使用 STM32F1 标准外设库（SPL）和裸机循环；这里**没有移植 FreeRTOS，也没有在飞控板上运行 Linux**。Linux/GCC/CMake/CTest 可作为电脑端构建、测试知识来讲。

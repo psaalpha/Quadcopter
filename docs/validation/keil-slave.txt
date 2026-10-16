@@ -1,0 +1,7 @@
+*** Using Compiler 'V5.06 update 7 (build 960)', folder: 'E:\STM32_Keil_Free\keil_v5\ARM\ARMCC\Bin'
+Build target 'Target 1'
+compiling slave_app.c...
+linking...
+Program Size: Code=30280 RO-data=2016 RW-data=344 ZI-data=10696  
+".\Objects\Project.axf" - 0 Error(s), 0 Warning(s).
+Build Time Elapsed:  00:00:01

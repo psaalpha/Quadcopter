@@ -1,3 +1,4 @@
+#include "rtos_support.h"
 #include "optical_flow.h"
 #include "dma_rx.h"
 #include <string.h>
@@ -87,12 +88,12 @@ void optical_flow_init(void)
     DMA_Init(DMA1_Channel5, &dma);
     DMA_ITConfig(DMA1_Channel5, DMA_IT_HT | DMA_IT_TC | DMA_IT_TE, ENABLE);
     interrupt.NVIC_IRQChannel = USART1_IRQn;
-    interrupt.NVIC_IRQChannelPreemptionPriority = 1u;
+    interrupt.NVIC_IRQChannelPreemptionPriority = 7u;
     interrupt.NVIC_IRQChannelSubPriority = 0u;
     interrupt.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&interrupt);
     interrupt.NVIC_IRQChannel = DMA1_Channel5_IRQn;
-    interrupt.NVIC_IRQChannelSubPriority = 1u;
+    interrupt.NVIC_IRQChannelSubPriority = 0u;
     NVIC_Init(&interrupt);
     memset(&optical_flow_data, 0, sizeof(optical_flow_data));
     memset(&statistics, 0, sizeof(statistics));
@@ -116,6 +117,7 @@ void USART1_IRQHandler(void)
                        USART_FLAG_PE)) != 0u) hardware_error = 1u;
         dma_rx_notify_from_isr(&receiver);
     }
+    rtos_notify_service_from_isr(RTOS_EVENT_IO);
 }
 void DMA1_Channel5_IRQHandler(void)
 {
@@ -124,6 +126,7 @@ void DMA1_Channel5_IRQHandler(void)
         hardware_error = 1u;
     }
     dma_rx_on_dma_interrupt(&receiver);
+    rtos_notify_service_from_isr(RTOS_EVENT_IO);
 }
 /* Preserve the repository's module-specific payload semantics until the
  * actual sensor/manual is identified. $X< resembles MSPv2, but this change

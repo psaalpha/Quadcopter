@@ -1,3 +1,5 @@
+> 本文保留原裸机基线的说明/历史记录。本分支当前FreeRTOS架构以[迁移教学](FREERTOS_MIGRATION.md)与[本次验证](FREERTOS_VALIDATION.md)为准。
+
 # 后续演进路线
 
 ## 已完成的工程基线

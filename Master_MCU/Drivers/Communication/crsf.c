@@ -10,6 +10,8 @@
   */
 
 #include "crsf.h"
+#include "dma_rx.h"
+#include "rtos_support.h"
 #include <string.h>
 
 /* 协议和串口配置常量 */
@@ -23,7 +25,8 @@ volatile uint32_t crsf_crc_error_count = 0;
 
 /* DMA 环形接收缓冲 */
 static uint8_t  crsf_dma_buf[CRSF_DMA_BUF_SIZE] __attribute__((aligned(4)));
-static uint32_t crsf_dma_last_ndtr = 0;
+static dma_rx_t crsf_rx;
+static volatile uint8_t crsf_hardware_error;
 
 /* CRSF 帧解析状态 */
 static uint8_t  crsf_frame_buf[CRSF_MAX_FRAME_LEN + 4]; /* sync + len + type + payload + crc */
@@ -105,6 +108,7 @@ static void crsf_usart_config(void)
 static void crsf_dma_config(void)
 {
     DMA_InitTypeDef dma_config;
+    NVIC_InitTypeDef irq;
 
     RCC_AHBPeriphClockCmd(RCC_AHBPeriph_DMA1, ENABLE);
 
@@ -123,10 +127,20 @@ static void crsf_dma_config(void)
     dma_config.DMA_M2M                = DMA_M2M_Disable;
     DMA_Init(DMA1_Channel6, &dma_config);
 
+    dma_rx_init(&crsf_rx, DMA1_Channel6, crsf_dma_buf, CRSF_DMA_BUF_SIZE,
+                DMA1_FLAG_HT6, DMA1_FLAG_TC6);
+    crsf_hardware_error = 0u;
+    DMA_ITConfig(DMA1_Channel6, DMA_IT_HT | DMA_IT_TC | DMA_IT_TE, ENABLE);
+    irq.NVIC_IRQChannel = DMA1_Channel6_IRQn;
+    irq.NVIC_IRQChannelPreemptionPriority = 7u;
+    irq.NVIC_IRQChannelSubPriority = 0u;
+    irq.NVIC_IRQChannelCmd = ENABLE;
+    NVIC_Init(&irq);
+    irq.NVIC_IRQChannel = USART2_IRQn;
+    NVIC_Init(&irq);
+    USART_ITConfig(USART2, USART_IT_IDLE, ENABLE);
+    USART_ITConfig(USART2, USART_IT_ERR, ENABLE);
     DMA_Cmd(DMA1_Channel6, ENABLE);
-
-    /* 记录初始 NDTR，后续通过差值计算新增字节数。 */
-    crsf_dma_last_ndtr = DMA_GetCurrDataCounter(DMA1_Channel6);
 }
 
 /* 主循环周期调用：从 DMA 环形缓冲取出新字节并喂给帧状态机。 */
@@ -135,40 +149,58 @@ void crsf_process(void)
     crsf_read_dma_buffer();
 }
 
-/* 根据 DMA NDTR 变化读取新增字节。 */
+/* 420000 baud满线约42字节/ms。512B覆盖约12.2ms；每5ms最多读取256B。
+ * HT/TC计数完整绕圈，IDLE只是唤醒，不视为一帧；任务积压时丢弃不确定字节。
+ * PRIMASK短临界区仍必须短于一整圈，DMA本身不会因为关中断而停止。
+ */
 static void crsf_read_dma_buffer(void)
 {
-    uint32_t ndtr = DMA_GetCurrDataCounter(DMA1_Channel6);
-
-    /* NDTR 递减计数，通过上一次 NDTR 与当前 NDTR 的差值计算新增字节。 */
-    uint32_t new_bytes;
-    if (ndtr <= crsf_dma_last_ndtr)
-    {
-        /* 未回绕。 */
-        new_bytes = crsf_dma_last_ndtr - ndtr;
+    uint8_t bytes[256];
+    uint8_t dropped;
+    uint16_t i, count;
+    uint32_t mask = __get_PRIMASK();
+    uint8_t error;
+    __disable_irq();
+    error = crsf_hardware_error;
+    crsf_hardware_error = 0u;
+    __set_PRIMASK(mask);
+    if (error != 0u) {
+        DMA_Cmd(DMA1_Channel6, DISABLE);
+        DMA_ClearFlag(DMA1_FLAG_GL6);
+        DMA_SetCurrDataCounter(DMA1_Channel6, CRSF_DMA_BUF_SIZE);
+        dma_rx_init(&crsf_rx, DMA1_Channel6, crsf_dma_buf, CRSF_DMA_BUF_SIZE,
+                    DMA1_FLAG_HT6, DMA1_FLAG_TC6);
+        crsf_in_frame = 0u;
+        crsf_frame_ofs = 0u;
+        DMA_Cmd(DMA1_Channel6, ENABLE);
+        return; /* 故障字节绝不被当作低油门有效帧 */
     }
-    else
-    {
-        /* 环形缓冲发生回绕。 */
-        new_bytes = CRSF_DMA_BUF_SIZE - ndtr + crsf_dma_last_ndtr;
+    count = dma_rx_read(&crsf_rx, bytes, sizeof(bytes), &dropped);
+    if (dropped != 0u) { crsf_in_frame = 0u; crsf_frame_ofs = 0u; }
+    for (i = 0u; i < count; ++i) crsf_feed_byte(bytes[i]);
+}
+uint32_t crsf_get_rx_overruns(void) { return crsf_rx.overruns; }
+void DMA1_Channel6_IRQHandler(void)
+{
+    if (DMA_GetFlagStatus(DMA1_FLAG_TE6) != RESET) {
+        DMA_ClearFlag(DMA1_FLAG_TE6);
+        crsf_hardware_error = 1u;
     }
-
-    if (new_bytes > 0 && new_bytes < CRSF_DMA_BUF_SIZE)
-    {
-        uint32_t start_idx = (CRSF_DMA_BUF_SIZE - crsf_dma_last_ndtr) % CRSF_DMA_BUF_SIZE;
-        for (uint32_t i = 0; i < new_bytes; i++)
-        {
-            uint8_t byte = crsf_dma_buf[(start_idx + i) % CRSF_DMA_BUF_SIZE];
-            crsf_feed_byte(byte);
-        }
-
-        crsf_dma_last_ndtr = ndtr;
+    dma_rx_on_dma_interrupt(&crsf_rx);
+    rtos_notify_service_from_isr(RTOS_EVENT_IO);
+}
+void USART2_IRQHandler(void)
+{
+    uint32_t status = USART2->SR;
+    if ((status & (USART_FLAG_IDLE | USART_FLAG_ORE | USART_FLAG_FE |
+                   USART_FLAG_NE | USART_FLAG_PE)) != 0u) {
+        volatile uint32_t clear = USART2->DR;
+        (void)clear;
+        if ((status & (USART_FLAG_ORE | USART_FLAG_FE | USART_FLAG_NE | USART_FLAG_PE)) != 0u)
+            crsf_hardware_error = 1u;
+        dma_rx_notify_from_isr(&crsf_rx);
     }
-    /* 异常或溢出时重置游标。 */
-    else if (new_bytes >= CRSF_DMA_BUF_SIZE)
-    {
-        crsf_dma_last_ndtr = ndtr;
-    }
+    rtos_notify_service_from_isr(RTOS_EVENT_IO);
 }
 
 /* 单字节喂入 CRSF 帧状态机：SYNC -> LEN -> TYPE/PAYLOAD/CRC。 */

@@ -1,3 +1,4 @@
+#include "rtos_support.h"
 #include "board_inputs.h"
 static volatile uint8_t key_pending;
 static volatile uint8_t servo_pending;
@@ -16,8 +17,8 @@ static void board_inputs_configure_line(uint32_t line, uint8_t pin_source,
     exti.EXTI_LineCmd = ENABLE;
     EXTI_Init(&exti);
     interrupt.NVIC_IRQChannel = irq;
-    interrupt.NVIC_IRQChannelPreemptionPriority = 1u;
-    interrupt.NVIC_IRQChannelSubPriority = 3u;
+    interrupt.NVIC_IRQChannelPreemptionPriority = 8u;
+    interrupt.NVIC_IRQChannelSubPriority = 0u;
     interrupt.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&interrupt);
 }
@@ -43,6 +44,7 @@ void EXTI0_IRQHandler(void)
         EXTI_ClearITPendingBit(EXTI_Line0);
         key_pending = 1u;
     }
+    rtos_notify_service_from_isr(RTOS_EVENT_IO);
 }
 void EXTI1_IRQHandler(void)
 {
@@ -50,6 +52,7 @@ void EXTI1_IRQHandler(void)
         EXTI_ClearITPendingBit(EXTI_Line1);
         servo_pending = 1u;
     }
+    rtos_notify_service_from_isr(RTOS_EVENT_IO);
 }
 void EXTI9_5_IRQHandler(void)
 {
@@ -64,6 +67,7 @@ void EXTI9_5_IRQHandler(void)
             calib_pulse_pending = 1u;
         }
     }
+    rtos_notify_service_from_isr(RTOS_EVENT_IO);
 }
 void board_inputs_take(board_input_events_t *events)
 {

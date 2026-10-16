@@ -187,7 +187,7 @@
             <hadIRAM2>0</hadIRAM2>
             <hadIROM2>0</hadIROM2>
             <StupSel>8</StupSel>
-            <useUlib>0</useUlib>
+            <useUlib>1</useUlib>
             <EndSel>0</EndSel>
             <uLtcg>0</uLtcg>
             <nSecure>0</nSecure>
@@ -311,7 +311,7 @@
           </ArmAdsMisc>
           <Cads>
             <interw>1</interw>
-            <Optim>1</Optim>
+            <Optim>3</Optim>
             <oTime>0</oTime>
             <SplitLS>0</SplitLS>
             <OneElfS>1</OneElfS>
@@ -335,9 +335,9 @@
             <v6Rtti>0</v6Rtti>
             <VariousControls>
               <MiscControls />
-              <Define>USE_STDPERIPH_DRIVER</Define>
+              <Define>USE_STDPERIPH_DRIVER,QUADCOPTER_FREERTOS</Define>
               <Undefine />
-              <IncludePath>.\Core;.\App;.\BSP;.\Drivers\Bus;.\Drivers\Communication;.\Drivers\Display;.\Drivers\Sensors;.\Drivers\Sensors\BMP390;..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;..\Platform\STM32F1\System;..\Shared\Protocol;..\Shared\Drivers;..\Shared\Scheduling</IncludePath>
+              <IncludePath>.\Core;.\App;.\BSP;.\Drivers\Bus;.\Drivers\Communication;.\Drivers\Display;.\Drivers\Sensors;.\Drivers\Sensors\BMP390;..\Platform\STM32F1\CMSIS;..\Platform\STM32F1\SPL;..\Platform\STM32F1\System;..\Shared\Protocol;..\Shared\Drivers;..\Shared\Scheduling;..\Platform\FreeRTOS\Config;..\Platform\FreeRTOS\Kernel\include;..\Platform\FreeRTOS\Kernel\portable\RVDS\ARM_CM3</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -908,7 +908,16 @@
             </File>
           </Files>
         </Group>
-      </Groups>
+        <Group><GroupName>FreeRTOS</GroupName><Files>
+          <File><FileName>tasks.c</FileName><FileType>1</FileType><FilePath>..\Platform\FreeRTOS\Kernel\tasks.c</FilePath></File>
+          <File><FileName>queue.c</FileName><FileType>1</FileType><FilePath>..\Platform\FreeRTOS\Kernel\queue.c</FilePath></File>
+          <File><FileName>list.c</FileName><FileType>1</FileType><FilePath>..\Platform\FreeRTOS\Kernel\list.c</FilePath></File>
+          <File><FileName>port.c</FileName><FileType>1</FileType><FilePath>..\Platform\FreeRTOS\Kernel\portable\RVDS\ARM_CM3\port.c</FilePath></File>
+          <File><FileName>rtos_support.c</FileName><FileType>1</FileType><FilePath>..\Platform\FreeRTOS\Config\rtos_support.c</FilePath></File>
+          <File><FileName>task_health.c</FileName><FileType>1</FileType><FilePath>..\Shared\Scheduling\task_health.c</FilePath></File>
+          <File><FileName>slave_rtos.c</FileName><FileType>1</FileType><FilePath>App\slave_rtos.c</FilePath></File>
+      </Files></Group>
+    </Groups>
     </Target>
   </Targets>
   <RTE>

@@ -13,7 +13,16 @@ typedef uint32_t EXTITrigger_TypeDef;
 typedef struct {uint32_t EXTI_Line, EXTI_Mode, EXTI_Trigger; FunctionalState EXTI_LineCmd;} EXTI_InitTypeDef;
 typedef struct {uint16_t active[4], pending[4]; uint8_t preload[4], update_disabled;} TIM_TypeDef;
 extern USART_TypeDef fake_usart1, fake_usart2, fake_usart3;
-extern DMA_Channel_TypeDef fake_dma3, fake_dma4, fake_dma5, fake_dma7;
+extern DMA_Channel_TypeDef fake_dma3, fake_dma4, fake_dma5, fake_dma6, fake_dma7;
+#define DMA1_Channel6 (&fake_dma6)
+#define DMA1_Channel6_IRQn 70u
+#define USART2_IRQn 71u
+#define GPIO_Pin_3 (1u << 3)
+#define DMA_MemoryInc_Disable 0u
+#define DMA1_FLAG_HT6 (1u << 12)
+#define DMA1_FLAG_TC6 (1u << 13)
+#define DMA1_FLAG_TE6 (1u << 14)
+#define DMA1_FLAG_GL6 (DMA1_FLAG_HT6 | DMA1_FLAG_TC6 | DMA1_FLAG_TE6)
 extern GPIO_TypeDef fake_gpioa, fake_gpiob;
 extern TIM_TypeDef fake_tim4;
 #define USART1 (&fake_usart1)

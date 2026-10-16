@@ -1,0 +1,163 @@
+Start testing: Oct 16 12:58 CST
+----------------------------------------------------------
+1/10 Testing: task_health
+1/10 Test: task_health
+Command: "/mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host/task_health_test"
+Directory: /mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host
+"task_health" start time: Oct 16 12:58 CST
+Output:
+----------------------------------------------------------
+task watchdog health tests passed
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"task_health" end time: Oct 16 12:58 CST
+"task_health" time elapsed: 00:00:00
+----------------------------------------------------------
+
+2/10 Testing: crsf_io
+2/10 Test: crsf_io
+Command: "/mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host/crsf_io_test"
+Directory: /mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host
+"crsf_io" start time: Oct 16 12:58 CST
+Output:
+----------------------------------------------------------
+CRSF DMA stream tests passed
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"crsf_io" end time: Oct 16 12:58 CST
+"crsf_io" time elapsed: 00:00:00
+----------------------------------------------------------
+
+3/10 Testing: inter_mcu_protocol
+3/10 Test: inter_mcu_protocol
+Command: "/mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host/inter_mcu_protocol_test"
+Directory: /mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host
+"inter_mcu_protocol" start time: Oct 16 12:58 CST
+Output:
+----------------------------------------------------------
+inter_mcu_protocol_test: PASS
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"inter_mcu_protocol" end time: Oct 16 12:58 CST
+"inter_mcu_protocol" time elapsed: 00:00:00
+----------------------------------------------------------
+
+4/10 Testing: flight_safety
+4/10 Test: flight_safety
+Command: "/mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host/flight_safety_test"
+Directory: /mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host
+"flight_safety" start time: Oct 16 12:58 CST
+Output:
+----------------------------------------------------------
+flight_safety_test: PASS
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"flight_safety" end time: Oct 16 12:58 CST
+"flight_safety" time elapsed: 00:00:00
+----------------------------------------------------------
+
+5/10 Testing: pid_control
+5/10 Test: pid_control
+Command: "/mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host/pid_control_test"
+Directory: /mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host
+"pid_control" start time: Oct 16 12:58 CST
+Output:
+----------------------------------------------------------
+pid_control_test: PASS
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"pid_control" end time: Oct 16 12:58 CST
+"pid_control" time elapsed: 00:00:00
+----------------------------------------------------------
+
+6/10 Testing: yaw_estimator
+6/10 Test: yaw_estimator
+Command: "/mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host/yaw_estimator_test"
+Directory: /mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host
+"yaw_estimator" start time: Oct 16 12:58 CST
+Output:
+----------------------------------------------------------
+yaw_estimator_test: PASS
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"yaw_estimator" end time: Oct 16 12:58 CST
+"yaw_estimator" time elapsed: 00:00:00
+----------------------------------------------------------
+
+7/10 Testing: master_io
+7/10 Test: master_io
+Command: "/mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host/master_io_test"
+Directory: /mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host
+"master_io" start time: Oct 16 12:58 CST
+Output:
+----------------------------------------------------------
+master_io_test: PASS
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"master_io" end time: Oct 16 12:58 CST
+"master_io" time elapsed: 00:00:00
+----------------------------------------------------------
+
+8/10 Testing: scheduler
+8/10 Test: scheduler
+Command: "/mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host/scheduler_test"
+Directory: /mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host
+"scheduler" start time: Oct 16 12:58 CST
+Output:
+----------------------------------------------------------
+scheduler tests passed
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"scheduler" end time: Oct 16 12:58 CST
+"scheduler" time elapsed: 00:00:00
+----------------------------------------------------------
+
+9/10 Testing: slave_io
+9/10 Test: slave_io
+Command: "/mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host/slave_io_test"
+Directory: /mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host
+"slave_io" start time: Oct 16 12:58 CST
+Output:
+----------------------------------------------------------
+slave IO tests passed
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"slave_io" end time: Oct 16 12:58 CST
+"slave_io" time elapsed: 00:00:00
+----------------------------------------------------------
+
+10/10 Testing: slave_app
+10/10 Test: slave_app
+Command: "/mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host/slave_app_test"
+Directory: /mnt/c/Users/QIA/Documents/Codex/2026-10-16/referenced-chatgpt-conversation-this-is-an/work/Quadcopter/build/linux/tests/host
+"slave_app" start time: Oct 16 12:58 CST
+Output:
+----------------------------------------------------------
+slave application tests passed
+<end of output>
+Test time =   0.01 sec
+----------------------------------------------------------
+Test Passed.
+"slave_app" end time: Oct 16 12:58 CST
+"slave_app" time elapsed: 00:00:00
+----------------------------------------------------------
+
+End testing: Oct 16 12:58 CST

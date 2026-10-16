@@ -18,6 +18,7 @@ static uint8_t link_busy;
 static uint32_t sends, adc_requests, optical_calls, oled_calls, osd_calls;
 static uint32_t calibration_collects, calibration_saves, pauses, resumes;
 static uint16_t servo_pulse;
+static float last_osd_float;
 static inter_mcu_sensor_data_t latest_packet;
 float qmc5883p_yaw_deg = 10.0f;
 void slave_board_init_interrupts(void) {}
@@ -78,7 +79,7 @@ void osd_init(void) {}
 void osd_display_int_padded(uint8_t row,uint8_t column,uint8_t length,int32_t number)
 {(void)row;(void)column;(void)length;(void)number;osd_calls++;}
 void osd_display_float(uint8_t row,uint8_t column,uint8_t digits,uint8_t fraction,float number)
-{(void)row;(void)column;(void)digits;(void)fraction;(void)number;osd_calls++;}
+{(void)row;(void)column;(void)digits;(void)fraction;last_osd_float=number;osd_calls++;}
 static void RunOneMillisecond(void)
 {
     uint32_t before_oled = oled_calls;
@@ -119,6 +120,18 @@ int main(void)
     slave_app_get_stats(&stats);
     assert(stats.calibration_saved==1u && stats.calibration_errors==0u);
     assert(stats.display_restarts==0u);
+    /* 模拟生产者在队列复制后继续更新传感器：显示必须仍使用旧快照，
+     * 不能在字段间读取正在变化的全局航向。这不模拟内核调度时序。 */
+    {
+        slave_display_snapshot_t snapshot;
+        float original_yaw = qmc5883p_yaw_deg;
+        slave_app_capture_display(&snapshot);
+        qmc5883p_yaw_deg = original_yaw + 90.0f;
+        slave_app_display_step(&snapshot); /* 距离字段 */
+        slave_app_display_step(0);         /* 航向字段 */
+        assert(last_osd_float == original_yaw);
+        qmc5883p_yaw_deg = original_yaw;
+    }
     puts("slave application tests passed");
     return 0;
 }

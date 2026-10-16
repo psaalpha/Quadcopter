@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - develop
+      - 'feature/freertos-study-migration'
   pull_request:
 
 jobs:
@@ -23,6 +24,10 @@ jobs:
         run: python tools/validate_project.py
 
       - name: Configure host tests
+        # 此检查不要求CI有Keil；没有map时明确只验证源码契约。
+        run: python tools/check_freertos.py
+
+      - name: Configure host CMake tests
         run: cmake -S . -B build/host -DCMAKE_BUILD_TYPE=Release
 
       - name: Build host tests

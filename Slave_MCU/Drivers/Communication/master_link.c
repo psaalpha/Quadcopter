@@ -1,3 +1,4 @@
+#include "rtos_support.h"
 #include "stm32f10x.h"
 #include "master_link.h"
 #include <string.h>
@@ -39,8 +40,8 @@ void master_link_init(void)
     DMA_ClearFlag(DMA1_FLAG_GL7);
     DMA_ITConfig(DMA1_Channel7, DMA_IT_TC | DMA_IT_TE, ENABLE);
     interrupt.NVIC_IRQChannel = DMA1_Channel7_IRQn;
-    interrupt.NVIC_IRQChannelPreemptionPriority = 1u;
-    interrupt.NVIC_IRQChannelSubPriority = 2u;
+    interrupt.NVIC_IRQChannelPreemptionPriority = 7u;
+    interrupt.NVIC_IRQChannelSubPriority = 0u;
     interrupt.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&interrupt);
     tx_events = 0u;
@@ -59,6 +60,7 @@ void DMA1_Channel7_IRQHandler(void)
         DMA_ClearFlag(DMA1_FLAG_TC7);
         tx_events |= LINK_DMA_DONE;
     }
+    rtos_notify_service_from_isr(RTOS_EVENT_IO);
 }
 void master_link_process(uint32_t now_ms)
 {

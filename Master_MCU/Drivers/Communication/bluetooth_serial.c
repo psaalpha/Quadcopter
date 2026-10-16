@@ -1,3 +1,4 @@
+#include "rtos_support.h"
 /**
   ******************************************************************************
   * @file    bluetooth_serial.c
@@ -115,20 +116,20 @@ void bluetooth_serial_init(void)
     /* ── NVIC: USART1 (IDLE 中断) ── */
     nvic_config.NVIC_IRQChannel                   = USART1_IRQn;
     nvic_config.NVIC_IRQChannelCmd                = ENABLE;
-    nvic_config.NVIC_IRQChannelPreemptionPriority = 3;
-    nvic_config.NVIC_IRQChannelSubPriority        = 2;
+    nvic_config.NVIC_IRQChannelPreemptionPriority = 8u;
+    nvic_config.NVIC_IRQChannelSubPriority        = 0u;
     NVIC_Init(&nvic_config);
 
     /* ── NVIC: DMA1_Channel4 (TX 完成中断) ── */
     nvic_config.NVIC_IRQChannel                   = DMA1_Channel4_IRQn;
     nvic_config.NVIC_IRQChannelCmd                = ENABLE;
-    nvic_config.NVIC_IRQChannelPreemptionPriority = 3;
-    nvic_config.NVIC_IRQChannelSubPriority        = 3;
+    nvic_config.NVIC_IRQChannelPreemptionPriority = 8u;
+    nvic_config.NVIC_IRQChannelSubPriority        = 0u;
     NVIC_Init(&nvic_config);
 
     /* DMA RX events also handle streams without IDLE gaps. */
     nvic_config.NVIC_IRQChannel = DMA1_Channel5_IRQn;
-    nvic_config.NVIC_IRQChannelSubPriority = 3;
+    nvic_config.NVIC_IRQChannelSubPriority = 0u;
     NVIC_Init(&nvic_config);
 
     /* ── 启动 USART1 ── */

@@ -1,3 +1,5 @@
+> 本文保留原裸机基线的说明/历史记录。本分支当前FreeRTOS架构以[迁移教学](FREERTOS_MIGRATION.md)与[本次验证](FREERTOS_VALIDATION.md)为准。
+
 # 2026-10-04 运行调度整理
 
 工作分支：`codex/resume-study-spl`；本次修改基于 `4951694`。

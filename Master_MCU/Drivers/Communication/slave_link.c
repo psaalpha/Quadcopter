@@ -1,3 +1,4 @@
+#include "rtos_support.h"
 /**
   ******************************************************************************
   * @file    master_link.c
@@ -113,12 +114,12 @@ static void slave_link_usart_config(void)
     /* 优先级低于姿态控制相关定时器，避免影响飞控时序。 */
     nvic_config.NVIC_IRQChannel                   = USART3_IRQn;
     nvic_config.NVIC_IRQChannelCmd                = ENABLE;
-    nvic_config.NVIC_IRQChannelPreemptionPriority = 3;
-    nvic_config.NVIC_IRQChannelSubPriority        = 1;
+    nvic_config.NVIC_IRQChannelPreemptionPriority = 7u;
+    nvic_config.NVIC_IRQChannelSubPriority        = 0u;
     NVIC_Init(&nvic_config);
 
     nvic_config.NVIC_IRQChannel = DMA1_Channel3_IRQn;
-    nvic_config.NVIC_IRQChannelSubPriority = 2;
+    nvic_config.NVIC_IRQChannelSubPriority = 0u;
     NVIC_Init(&nvic_config);
 
     USART_Cmd(USART3, ENABLE);
@@ -169,11 +170,13 @@ void USART3_IRQHandler(void)
 
         dma_rx_notify_from_isr(&slave_rx);
     }
+    rtos_notify_service_from_isr(RTOS_EVENT_IO);
 }
 
 void DMA1_Channel3_IRQHandler(void)
 {
     dma_rx_on_dma_interrupt(&slave_rx);
+    rtos_notify_service_from_isr(RTOS_EVENT_IO);
 }
 
 /* One bounded batch per main-loop turn. 41 bytes at 20Hz/115200 takes
