@@ -50,5 +50,5 @@
 
 PA2 用于连接主控 USART3 RX；PA3 是蜂鸣器，不配置为串口 RX。硬件接线必须共地。
 
-周期和时钟详见 [运行调度](RUNTIME_SCHEDULING.md)。
+周期和时钟详见 [架构](ARCHITECTURE.md)。
 
