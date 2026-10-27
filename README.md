@@ -1,87 +1,72 @@
-# Quadcopter STM32 Flight Controller
+# Quadcopter
 
-当前分支已迁移到 FreeRTOS。学习入口见 [裸机到 RTOS 映射](docs/FREERTOS_MIGRATION.md)，
-构建结果与硬件验证边界见 [验证记录](docs/FREERTOS_VALIDATION.md)。
+基于双 STM32F103C8T6 和 FreeRTOS 的四旋翼飞控固件，使用 C、STM32 SPL 和 Keil ARMCC5。
+当前 `freertos` 分支维护 FreeRTOS 实现；`baremetal` 分支持续完善裸机版本。
 
-这是一个双 STM32F103C8T6 飞控工程：
+主控负责遥控接收、姿态估计、串级 PID 和电机输出；从控负责传感器采集、显示、电池监测和数据发送。
 
-- `Master_MCU` 负责遥控输入、姿态解算、串级 PID、安全状态和四路电机输出。
-- `Slave_MCU` 负责气压计、光流、磁力计、电池监测、舵机、OLED/OSD，以及向主控汇总传感器数据。
+## 功能
 
-`feature/freertos-study-migration` 从远端 `codex/resume-study-spl` 最新提交
-`3d4a73d9be58bc02c4fcd5acf1b60bccdce97213` 独立派生。主控控制/蓝牙、从控采集/显示
-采用静态 FreeRTOS 任务、通知与队列，保留 SPL、Keil、原算法和41字节协议。
-本分支尚未上板验证；辅助PID默认零增益，不能用于宣称可安全实飞。
+- MPU6050 姿态估计，100Hz 角度外环、500Hz 角速度内环和四路 50Hz PWM。
+- FreeRTOS 静态任务与队列，通过任务通知处理定时器和 DMA 事件。
+- CRSF 遥控接收：420000 baud、DMA 环形缓冲、CRC8 校验和异常重同步。
+- 主从通信：115200 baud、41 字节固定帧、版本、序号和 CRC16。
+- 上电低油门锁、300ms 遥控失联保护、任务心跳看门狗。
+- BMP390、QMC5883P 和光流采集，以及高度/光流辅助控制接口。
 
-首次接手项目请从 [工程文档索引](docs/README.md) 开始，里面提供按开发角色和学习顺序组织的阅读路径。
+当前版本已有双目标编译和主机回归记录；尚未完成上板、台架和飞行验证。辅助 PID 默认零增益，实际周期、栈余量和传感器方向仍需测量。详见[测试与验证](docs/TESTING.md)。
 
-## 工程结构
+## 目录
 
 ```text
-Master_MCU/  Core / App / BSP / Control / Drivers
-Slave_MCU/   Core / App / BSP / Drivers
-Shared/      Protocol / Scheduling / Drivers
-Platform/STM32F1/  CMSIS / SPL / System
-tests/host/  主机单元测试和寄存器模型
-tools/       工程检查及 Keil 双目标构建脚本
-docs/        架构、命名、协议、引脚、调度和学习文档
+Master_MCU/       主控固件
+Slave_MCU/        从控固件
+Shared/           共享协议、调度和 DMA 辅助模块
+Platform/         STM32 平台代码与 FreeRTOS
+tests/host/       主机测试与寄存器模型
+tools/            工程校验与固件构建脚本
+docs/             工程文档
 ```
 
-详细模块归属和重命名说明见 [项目结构与命名规范](docs/PROJECT_STRUCTURE.md)。BMP390 适配层与 Bosch 原厂文件统一放在 `Slave_MCU/Drivers/Sensors/BMP390/`。
+## 构建
 
-## 快速验证
+仓库根目录执行结构与 RTOS 源码检查：
 
-电脑端检查：
-
-```powershell
+```sh
 python tools/validate_project.py
 python tools/check_freertos.py
-cmake -S . -B build/host -G "MinGW Makefiles"
+```
+
+Linux 主机完整回归：
+
+```sh
+cmake -S . -B build/host -DCMAKE_BUILD_TYPE=Release
 cmake --build build/host
 ctest --test-dir build/host --output-on-failure
 ```
 
-Keil/ARMCC 双目标构建：
+Windows 双目标固件构建：
 
 ```powershell
 .\tools\build_firmware.ps1
 ```
 
-工程默认使用 ARMCC5 `-O2` 和 MicroLIB，两目标已在现有32KB免费链接器下构建。
-从控余量有限，新增功能后必须重新检查链接图；64KB Flash物理容量不等于32KB工具授权上限。
-主机测试也不模拟RTOS真实调度、DMA电气时序或飞控硬件。
-
-如果 Keil 不在默认路径：
-
-```powershell
-.\tools\build_firmware.ps1 -KeilPath "D:\Keil_v5\UV4\UV4.exe"
-```
-
-## 重要安全说明
-
-- 上电、遥控失联和重连后都必须先收到有效的低油门帧，电机输出才会放行。
-- 遥控连续 300 ms 没有有效 CRSF 帧会进入失联保护并立即写入四路最小输出。
-- 当前尚未绑定专用 ARM/DISARM 开关。低油门解锁只是基础保护，不能替代正式的飞行解锁流程。
-- 主从通信协议已经升级，主控和从控必须成对烧录同一版本。
-
-在连接桨叶前，必须先完成无桨台架验证。更详细的限制和测试要求见 [安全说明](docs/SAFETY.md)。
+工具链设置、Windows 主机测试和烧录步骤见[构建说明](docs/BUILD.md)。
 
 ## 文档
 
-- [简历项目复习导读（本分支从这里开始）](docs/RESUME_STUDY_GUIDE.md)
-- [develop 嵌入式工程化学习指南](docs/DEVELOP_ENGINEERING_LEARNING_GUIDE.md)
-- [工程文档索引与学习路径](docs/README.md)
-- [项目结构与模块职责](docs/PROJECT_STRUCTURE.md)
-- [总体架构](docs/ARCHITECTURE.md)
-- [驱动接口规范](docs/DRIVER_API.md)
-- [开发维护指南](docs/DEVELOPMENT_GUIDE.md)
-- [构建与验证](docs/BUILD.md)
-- [自动测试说明](docs/TESTING.md)
-- [硬件资源与引脚](docs/PINOUT.md)
-- [主从通信协议](docs/PROTOCOL.md)
-- [安全状态机](docs/SAFETY.md)
-- [运行维护手册](docs/MAINTENANCE.md)
-- [固件发布流程](docs/RELEASE.md)
-- [后续演进路线](docs/ROADMAP.md)
-- [协作规范](CONTRIBUTING.md)
+- [架构](docs/ARCHITECTURE.md)：模块职责、任务、周期、中断和数据所有权。
+- [构建](docs/BUILD.md)：环境、测试命令、Keil 编译和成对烧录。
+- [测试与验证](docs/TESTING.md)：测试覆盖、构建记录、资源占用和待验证项。
+- [硬件资源](docs/PINOUT.md)：引脚、定时器和 DMA 分配。
+- [主从协议](docs/PROTOCOL.md)：41 字节帧格式和兼容约定。
+- [安全状态](docs/SAFETY.md)：启动锁、失联恢复、故障停机和已知限制。
 
+## 分支
+
+| 分支 | 用途 |
+|---|---|
+| `baremetal` | 持续完善裸机调度、驱动、控制和通信 |
+| `freertos` | 维护 FreeRTOS 任务、通知、队列与实时系统实现；默认分支 |
+
+两条分支分别维护各自运行模型。通用修复按需同步；独立功能或修复使用临时分支，完成后合入对应版本并删除。

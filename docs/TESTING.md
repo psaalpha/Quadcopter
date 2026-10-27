@@ -1,151 +1,93 @@
-> 本文保留原裸机基线的说明/历史记录。本分支当前FreeRTOS架构以[迁移教学](FREERTOS_MIGRATION.md)与[本次验证](FREERTOS_VALIDATION.md)为准。
+# 测试与验证
 
-# 自动测试与验证说明
+以下记录区分主机逻辑、固件构建和实际硬件。现有构建记录不代表已完成台架或飞行验证。
 
-## 测试目标
+## 检查记录（2026-10-27）
 
-本项目采用分层验证：
+- WSL Ubuntu 24.04、GCC 13.3.0、CMake Release 构建成功，10/10 项 CTest 全部通过。
+- 工程结构、两个 Keil 工程引用和文档链接校验通过。
+- FreeRTOS 固定内核、静态分配、中断与异常向量源码检查通过。
+- 本次整理未修改固件运行代码；未重新执行 Keil 链接或硬件测试。
 
-```text
-静态结构校验
-    ↓
-电脑端纯 C 单元测试
-    ↓
-Master/Slave ARMCC 构建
-    ↓
-无桨台架测试
-    ↓
-系留与受控飞行测试
-```
+## 测试覆盖
 
-上层测试不能替代下层硬件验证，但能够更早发现结构和逻辑回归。
-
-## 结构校验
-
-```powershell
-python tools/validate_project.py
-```
-
-当前检查：
-
-- 必需工程文件存在；
-- Master/Slave 不重新出现重复平台目录；
-- 两个 Keil XML 可以解析；
-- Keil 引用的源文件和 include 目录存在；
-- Master/Slave 都编译共享协议；
-- 核心维护文档存在。
-
-## Host 单元测试
-
-```powershell
-cmake -S . -B build/host -G "MinGW Makefiles"
-cmake --build build/host
-ctest --test-dir build/host --output-on-failure
-```
-
-### 协议测试
-
-覆盖：
-
-- CRC16-CCITT 标准向量；
-- 小端序；
-- 有符号数；
-- 编码/解码往返；
-- 错误长度；
-- magic 错误；
-- payload 损坏后的 CRC 拒绝。
-
-### 安全状态测试
-
-覆盖：
-
-- 上电锁；
-- 高油门不能解锁；
-- 低油门进入 ACTIVE；
-- 300 ms 失联；
-- 高油门恢复锁；
-- 低油门恢复；
-- 32 位 tick 回绕。
-
-### estimated_yaw_deg 与导航 PID 测试
-
-- `yaw_estimator_test`：首帧磁力计对齐、0/360° 环绕方向、无效航向拒绝。
-- `pid_control_test`：estimated_yaw_deg 最短角误差及混控输出、高度/光流修正输出、退出辅助模式后的积分和输出清零。
-- 这些是算法层电脑端测试，不验证传感器装配、串口电气和真实电机转向。
-
-## ARMCC 固件构建
-
-```powershell
-.\tools\build_firmware.ps1
-```
-
-验收条件：
-
-- Master：`0 Error(s), 0 Warning(s)`；
-- Slave：`0 Error(s), 0 Warning(s)`；
-- 构建日志保存于各目标 `Objects/engineering_build.log`；
-- 协议变化时两个目标必须同时构建。
-
-## 无桨台架测试
-
-至少验证：
-
-| 场景 | 预期 |
+| 测试 | 覆盖 |
 |---|---|
-| 上电高油门 | 四路保持最小输出 |
-| 低油门建立链路 | 允许进入 ACTIVE |
-| 拔掉接收机 | 300 ms 内进入 LINK_LOSS |
-| 高油门重连 | 保持 RECOVERY_LOCK |
-| 主从断线 | Master 不发布损坏数据 |
-| 注入错误 CRSF CRC | 不刷新 RC 链路 |
-| 注入错误主从 CRC | CRC 计数增加，数据不更新 |
-| 主循环人为延迟 | scheduler overrun 可观察 |
-| CH6 关闭或光流质量/测距无效 | 高度/光流辅助退出，保留手动目标 |
-| 从控磁力计无新样本 | 不重复融合旧航向 |
+| task_health | 主从任务心跳、喂狗门限与时基回绕 |
+| crsf_io | DMA 分段、CRC、环形覆盖、错误与重同步 |
+| inter_mcu_protocol | 41 字节协议、字节序、CRC 和异常帧 |
+| flight_safety | 启动锁、300ms 失联、重连低油门锁与时间回绕 |
+| pid_control | PID 限幅、混控、辅助输出与重置 |
+| yaw_estimator | 磁力计首帧对齐、角度回绕与无效输入 |
+| master_io | 主控串口、DMA 所有权、遥测与 PWM 寄存器模型 |
+| scheduler | 周期事件、合并、积压与时间回绕 |
+| slave_io | 光流接收、DMA 发送、输入边沿与缓冲回收 |
+| slave_app | 采集、发布、校准、显示及服务协作 |
 
-## 何时必须增加测试
+Linux 构建运行全部 10 项，Windows 原生构建运行其中 5 项可移植测试。
+寄存器模型不验证真实中断延迟、DMA 电气时序或 FreeRTOS 抢占行为。
+断言在 Release 中保持启用，CI 把主机编译警告视为错误。
 
-- 修复曾经出现的缺陷；
-- 修改协议字段；
-- 修改状态机；
-- 修改时间回绕或超时逻辑；
-- 新增参数范围；
-- 把硬件逻辑提取为纯 C 模块；
-- 修改任何电机放行条件。
+## 已有构建与回归记录（2026-10-16）
 
-测试命名应描述行为，而不是函数实现。
+- Keil MDK、ARM Compiler 5.06 update 7 build 960，两目标编译及链接均0 error / 0 warning。
+- 默认工程使用ARMCC `-O2`、MicroLIB、C99和SPL，无内核运行期动态分配。
+- Linux WSL GCC 13.3.0、CMake/CTest Release：10项回归全部通过，编译警告视为错误。
+- `validate_project.py`：双Keil源文件/选项列表、include、共享协议、校准页边界、文档链接检查通过。
+- `check_freertos.py`：固定内核文件校验、IRQ数值、异常向量归属、无heap_x.c、延时不占用SysTick，
+  以及本地Keil map的Flash/RAM预算检查通过。
+- `git diff --check`无空白错误；Git在Windows提示的LF/CRLF转换不代表编译失败。
+- 该次 RTOS 集成保持协议、PID/姿态算法与纯安全状态机实现。
 
-## 主控串口与 PWM 回归（Linux 主机）
+## Flash/RAM 与链接器预算（2026-10-16）
 
-`master_io_test` 编译实际 bluetooth_serial、slave_link、dma_rx 和 motor_pwm 驱动，使用最小寄存器模型验证：中断不解析、连续蓝牙命令、跨 IDLE 半帧、无 IDLE 的 DMA 通知、坏 CRC 重同步、跨缓冲边界、整圈溢出恢复、待处理 TC、32 位计数回绕、遥测忙时不阻塞，以及 PWM 预装载/安全最小输出。模型不证明真实寄存器时序、NVIC 延迟或实机飞行表现，也不替代 Keil 双目标构建。
+按ST数据手册，F103C8为64KB Flash、20KB SRAM，不能按部分板卡可能存在的额外Flash扩容。
+从控继续预留最后1KB `0x0800FC00..0x0800FFFF`，应用IROM上限为63KB。
 
-## 毫秒调度与从机回归
+| 最终链接图指标 / 字节 | Master | Slave |
+|---|---:|---:|
+| Code | 24,172 | 30,280 |
+| RO data | 508 | 2,016 |
+| RW data 未压缩 | 684 | 344 |
+| ZI data | 9,668 | 10,696 |
+| RO合计 | 24,680 | 32,296 |
+| ROM合计 含压缩初值 | 24,784 | 32,340 |
+| Load Region未压缩尺寸 保守预算 | 25,364 | 32,640 |
+| RAM RW加ZI | 10,352 | 11,040 |
+| SRAM余量 相对20,480 | 10,128 | 9,440 |
+| 相对32,768的保守余量 | 7,404 | 128 |
 
-Linux 新增 `scheduler_test`、`slave_io_test`、`slave_app_test`，合计 8 项。
-分别验证周期/合并/时间回绕及 300ms 保护，从机 DMA 所有权/分帧/溢出/输入脉冲，
-以及 20Hz 发布、10 秒校准等待 TX 后保存、逐字符显示期间持续服务光流。
-寄存器模型不证明真实 UART IDLE 清除时序、GPIO 脉冲最短宽度或总线电气特性。
-本次云端只完成主机回归、真实 SPL 头文件语法检查和工程引用检查，未完成 ARMCC 链接。
-校准 Flash 页保留、体积、ADC 电压、舵机波形和 DMA 通知时序需在 Keil/板上核验。
+RAM包含静态任务栈、TCB、队列、DMA buffer、1024B启动/异常MSP和原512B C库heap保留区。
+静态内存总量合格不等于每个任务的栈深足够；PSP高水位和MSP嵌套必须上板量测。
+从控当前虽已通过免费版链接，但保守余量仅128B。换编译器、改变优化或增加代码后
+可能再次超限；64KB 芯片容量与工具的 32KB 限制分别生效。
 
+历史裸机和完整 C 库试编曾超过 32KB 工具限制；最终配置为 `-O2` 与 MicroLIB。
+失败记录与最终成功构建分别保存在原始日志中，MicroLIB 硬件路径仍待复核。
 
-## 2026-10-08 目录与命名重构验证
+原始文本证据在 [validation目录](validation)。链接图摘要包含ROM/RAM及SVC、PendSV、SysTick
+来自官方port.o的符号信息。临时试编失败日志只说明当时配置的限制，不是最终源码可用性的证据。
 
-基线：`codex/resume-study-spl` 的 `02a54ef`。本次验证覆盖目录迁移、API/变量重命名和工程引用，不代表实机飞行验证。
+复现命令见[构建](BUILD.md)。GitHub Actions 不含 Keil 链接，主机测试不运行真实 Cortex-M 调度器。
 
-| 检查 | 结果 |
-|---|---|
-| 重构前、后全部 8 组主机测试 | 均通过；按 tests/host/CMakeLists.txt 的源文件与 include 集合直接使用 GCC 编译运行 |
-| 主机测试源码 GCC 静态分析 | `-fanalyzer -Wshadow -Wall -Wextra -Werror -pedantic` 通过 |
-| Keil 工程所列 C 源文件语法检查 | 主控 46、从控 44 个；使用真实 CMSIS/SPL 头文件及 STM32F10X_MD、USE_STDPERIPH_DRIVER 宏，通过 |
-| 项目头文件独立包含 | 31 个通过；软件总线、MPU6050、OLED 头文件补齐 stdint.h |
-| 源码差异核对 | 136 个 C/头文件仅有约定的标识符、include 和空白/注释变化；表达式、字面值、声明类型和执行顺序保持 |
-| Keil 工程配置核对 | 编译源文件集合、逐文件选项、目标设置保持；uvoptx 文件列表与 uvprojx 一致 |
-| 结构、CMake 路径、文档链接 | tools/validate_project.py 通过；git diff --check 通过 |
-| 平台/Bosch 内容 | 64 个文件保持；Bosch 三个原厂文件只迁移目录，保留 Git blob 和版权 |
+## 尚未完成
 
-环境未提供 Keil/ARMCC、GNU Arm 工具链或 CMake/CTest，因此未验证 CMake 配置生成和 ARM 固件编译、链接、Flash/RAM 占用及板上时序。主机测试通过不能替代 Keil 双目标构建。
+- 未烧录两块实际F103，未测2ms控制周期、最坏执行时间、ISR到任务延迟或PWM电气行为。
+- 未测任务PSP/MSP余量、饥饿后的真实IWDG复位、栈hook/assert/CPU异常最小输出。
+- 未验证MicroLIB下的硬件显示与软浮点路径，未做DMA高负载、Flash校准和输入边沿台架测试。
+- 未确认光流模块校验规则及物理量尺度，未改变导航零增益默认值或增加正式ARM开关。
+- 无桨台架、受控飞行和调参均未执行；当前版本不能标记为可安全实飞。
 
-从控 GCC 语法检查保留两条基线已有警告：OLED 字库初始化括号，以及 Bosch 源码未使用的 `intf_ptr` 参数；本次未修改这些内容。
+台架验证按本文末节执行，运行模型见[架构](ARCHITECTURE.md)。
 
-在带 CMake 的环境运行本页的 CMake/CTest 命令，在装有 Keil 的 Windows 电脑运行 `tools/build_firmware.ps1`，完成目标工具链复核。
+## 台架验证项目
+
+1. 成对烧录两端，记录芯片、时钟、固件提交和复位原因；检查启动锁与四路最小 PWM。
+2. 测量 2ms 内环、10ms 外环、ISR 到任务延迟、I2C 时序和四路 50Hz PWM；通信与显示同时满载时记录抖动。
+3. 验证高油门启动、低油门解锁、300ms 失联及高油门重连锁；注入控制积压/停滞并检查输出和复位。
+4. 阻塞后台任务，检查任务心跳、IWDG、栈 hook、assert 和异常路径。
+5. 验证 DMA 半帧、粘帧、无 IDLE 连续流、溢出、TE/UART 错误、发送 busy 和 20ms 超时回收。
+6. 检查校准与 Flash 保存期间的时基、光流服务、ADC、输入脉冲和舵机；验证 200ms 导航超时。
+7. 量测各任务 PSP 水位、MSP 嵌套余量与最坏执行时间；确认 MicroLIB 显示/软浮点路径。
+
+传感器方向、光流物理尺度、辅助 PID 参数和正式 ARM/DISARM 流程仍是后续工作。结果应记录实测环境和原始数据。

@@ -10,5 +10,5 @@
 - 不依赖 submodule 或运行时下载，两个 Keil 工程直接编译这些文件
 - 不加入任何 heap_x.c；静态任务、队列和 idle 内存在链接时确定
 
-`Config/` 是本项目配置和桥接，不是上游源码。教学入口见
-[FreeRTOS 迁移说明](../../docs/FREERTOS_MIGRATION.md)。
+`Config/` 是本项目配置和桥接，不是上游源码。项目任务与中断设计见
+[架构](../../docs/ARCHITECTURE.md)。

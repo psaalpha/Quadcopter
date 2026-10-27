@@ -3,9 +3,8 @@ name: Firmware quality gates
 on:
   push:
     branches:
-      - main
-      - develop
-      - 'feature/freertos-study-migration'
+      - baremetal
+      - freertos
   pull_request:
 
 jobs:

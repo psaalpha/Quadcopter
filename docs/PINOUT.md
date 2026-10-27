@@ -27,6 +27,8 @@
 
 主控未启用的 NRF24L01、本地 QMC5883P、OLED、PWM2 和重复 DMA_Serial 驱动已移除；从控对应驱动不变。
 
+两端 SysTick 均由 FreeRTOS 作为 1kHz 内核时基，SVC/PendSV/SysTick 向量由官方端口拥有。
+
 ## Slave MCU
 
 | 引脚/资源 | 功能 | 归属 |
@@ -50,5 +52,4 @@
 
 PA2 用于连接主控 USART3 RX；PA3 是蜂鸣器，不配置为串口 RX。硬件接线必须共地。
 
-周期和时钟详见 [运行调度](RUNTIME_SCHEDULING.md)。
-
+周期和时钟详见 [架构](ARCHITECTURE.md)。
