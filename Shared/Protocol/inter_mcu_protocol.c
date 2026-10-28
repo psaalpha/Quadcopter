@@ -1,6 +1,6 @@
 #include "inter_mcu_protocol.h"
 
-#define INTER_MCU_CRC_OFFSET  39u
+#define INTER_MCU_CRC_OFFSET  51u
 
 static void write_u16_le(uint8_t *destination, uint16_t value)
 {
@@ -92,6 +92,11 @@ uint8_t inter_mcu_encode_sensor_frame(const inter_mcu_sensor_data_t *data,
     frame[35] = data->flow_quality;
     write_u16_le(&frame[36], data->battery_mv);
     frame[38] = 0u;
+    write_u16_le(&frame[39], (uint16_t)data->mag_x);
+    write_u16_le(&frame[41], (uint16_t)data->mag_y);
+    write_u16_le(&frame[43], (uint16_t)data->mag_z);
+    write_u32_le(&frame[45], data->flow_integration_us);
+    write_u16_le(&frame[49], data->flow_epoch);
 
     crc = inter_mcu_crc16_ccitt(frame, INTER_MCU_CRC_OFFSET);
     write_u16_le(&frame[INTER_MCU_CRC_OFFSET], crc);
@@ -152,6 +157,11 @@ inter_mcu_decode_status_t inter_mcu_decode_sensor_frame(
     data->flow_distance_mm = read_u16_le(&frame[33]);
     data->flow_quality = frame[35];
     data->battery_mv = read_u16_le(&frame[36]);
+    data->mag_x = (int16_t)read_u16_le(&frame[39]);
+    data->mag_y = (int16_t)read_u16_le(&frame[41]);
+    data->mag_z = (int16_t)read_u16_le(&frame[43]);
+    data->flow_integration_us = read_u32_le(&frame[45]);
+    data->flow_epoch = read_u16_le(&frame[49]);
 
     return INTER_MCU_DECODE_OK;
 }

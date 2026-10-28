@@ -12,6 +12,7 @@
 #include "Delay.h"
 #include <stdio.h>
 #include <math.h>
+#include <string.h>
 typedef enum { CALIB_IDLE, CALIB_COLLECTING, CALIB_SAVE_PENDING } calib_state_t;
 static calib_state_t calib_state;
 static uint32_t calib_started_ms;
@@ -26,48 +27,37 @@ static uint16_t packet_sequence;
 static float pressure, temperature, relative_altitude_m, battery_voltage;
 static struct bmp3_dev barometer;
 static slave_app_stats_t statistics;
+/* 显示任务独占写，采集/调试侧仅读一个对齐32位诊断值，不共享显示缓冲。 */
+static volatile uint32_t display_restart_count;
 static char display_lines[4][17];
 static char displayed_lines[4][16];
 static uint8_t display_cursor = 64u;
-static uint8_t osd_step = 4u;
+static uint8_t osd_step = 7u;
 static optical_flow_data_t display_flow;
-static float display_yaw, display_temperature, display_battery;
-/* 气压高度滤波：滑动均值 + 慢速基线漂移滤波。 */
+static float display_yaw, display_temperature, display_battery, display_altitude;
+static uint32_t display_calibration_seconds;
+/* 气压高度滑动均值；参考高度仅在启动或手动归零时更新。 */
 #define FILTER_WINDOW_SIZE  8
 
-static double filter_buffer[FILTER_WINDOW_SIZE] = {0};
+static float filter_buffer[FILTER_WINDOW_SIZE] = {0};
 static int    filter_index  = 0;
 static int    filter_filled = 0;
 
-static double moving_average_filter(double new_val)
+static float moving_average_filter(float new_val)
 {
     filter_buffer[filter_index] = new_val;
     filter_index = (filter_index + 1) % FILTER_WINDOW_SIZE;
     if (filter_index == 0) filter_filled = 1;
 
     int    count = filter_filled ? FILTER_WINDOW_SIZE : filter_index;
-    double sum   = 0.0;
+    float sum   = 0.0f;
     for (int i = 0; i < count; i++) sum += filter_buffer[i];
     return sum / count;
 }
 
-/* 长时间常数基线滤波，用于抑制天气和气压缓慢漂移。 */
-#define BASELINE_ALPHA  0.00025
-
-static double altitude_baseline   = 0.0;
-static int    baseline_initialized = 0;
-static double ref_altitude        = 0.0;
-
-static double drift_filter(double raw_altitude)
-{
-    if (!baseline_initialized) {
-        altitude_baseline   = raw_altitude;
-        baseline_initialized = 1;
-        return raw_altitude;
-    }
-    altitude_baseline += BASELINE_ALPHA * (raw_altitude - altitude_baseline);
-    return raw_altitude - altitude_baseline;
-}
+static float ref_altitude;
+static uint8_t reference_initialized;
+static uint32_t last_baro_sample_ms,last_mag_sample_ms,last_sensor_retry_ms;
 
 static int32_t scale_float(float value,
                           float scale,
@@ -113,7 +103,6 @@ static uint8_t barometer_init(void)
     if (bmp3_set_sensor_settings(desired, &settings, &barometer) != BMP3_OK) return 0u;
     settings.op_mode = BMP3_MODE_NORMAL;
     if (bmp3_set_op_mode(&settings, &barometer) != BMP3_OK) return 0u;
-    Delay_ms(200);
     return 1u;
 }
 void slave_app_init(void)
@@ -181,12 +170,14 @@ static void publish_packet(uint32_t now_ms)
     inter_mcu_sensor_data_t packet;
     optical_flow_data_t flow;
     optical_flow_get_snapshot(&flow);
+    memset(&packet, 0, sizeof(packet));
     packet.sequence = packet_sequence++;
     packet.flags = 0u;
     if (baro_valid != 0u) packet.flags |= INTER_MCU_SENSOR_FLAG_BARO_VALID;
     if (mag_ok != 0u && calib_state == CALIB_IDLE && mag_sample_new != 0u)
-        packet.flags |= INTER_MCU_SENSOR_FLAG_MAG_VALID;
-    if (flow.data_valid != 0u) packet.flags |= INTER_MCU_SENSOR_FLAG_FLOW_VALID;
+        packet.flags |= INTER_MCU_SENSOR_FLAG_MAG_VALID | INTER_MCU_SENSOR_FLAG_MAG_RAW_VALID;
+    if (flow.data_valid != 0u && flow.checksum_valid != 0u)
+        packet.flags |= INTER_MCU_SENSOR_FLAG_FLOW_VALID | INTER_MCU_SENSOR_FLAG_FLOW_CHECKED;
     if (slave_board_battery_valid() != 0u && battery_voltage > 0.5f) {
         packet.flags |= INTER_MCU_SENSOR_FLAG_BATTERY_VALID;
         if (battery_voltage < SLAVE_LOW_BATTERY_V) packet.flags |= INTER_MCU_SENSOR_FLAG_LOW_BATTERY;
@@ -197,6 +188,9 @@ static void publish_packet(uint32_t now_ms)
     packet.temperature_centi_c = (int16_t)scale_float(temperature, 100.0f, -32768, 32767);
     packet.baro_altitude_mm = scale_float(relative_altitude_m, 1000.0f, -100000000, 100000000);
     packet.yaw_centi_deg = (uint16_t)scale_float(qmc5883p_yaw_deg, 100.0f, 0, 35999);
+    packet.mag_x = qmc_x_raw; packet.mag_y = qmc_y_raw; packet.mag_z = qmc_z_raw;
+    packet.flow_integration_us = flow.integration_us;
+    packet.flow_epoch = flow.epoch;
     packet.flow_x = flow.flow_x;
     packet.flow_y = flow.flow_y;
     packet.flow_distance_mm = flow.distance;
@@ -213,24 +207,27 @@ static void run_sensor_task(uint32_t now_ms)
     if (baro_available != 0u &&
         bmp3_get_sensor_data(BMP3_PRESS_TEMP, &data, &barometer) == BMP3_OK &&
         data.pressure > 0.0 && data.pressure < 200000.0) {
-        double filtered_pressure;
-        double altitude;
-        double drift_free_alt;
+        float filtered_pressure;
+        float altitude;
         pressure = (float)data.pressure;
         temperature = (float)data.temperature;
         filtered_pressure = moving_average_filter(pressure);
-        altitude = 44330.0 * (1.0 - pow(filtered_pressure / 101325.0, 0.190295));
-        drift_free_alt = drift_filter(altitude);
+        altitude = 44330.0f * (1.0f - powf(filtered_pressure / 101325.0f, 0.190295f));
+        if (!reference_initialized) {ref_altitude=altitude;reference_initialized=1u;}
         if (zero_pending != 0u) {
-            ref_altitude = drift_free_alt;
+            ref_altitude = altitude;
             zero_pending = 0u;
         }
-        relative_altitude_m = (float)(drift_free_alt - ref_altitude);
+        relative_altitude_m = altitude - ref_altitude;
+        last_baro_sample_ms = now_ms;
         baro_valid = 1u;
     } else statistics.barometer_errors++;
     if (mag_ok != 0u) {
         if (calib_state == CALIB_COLLECTING) qmc5883p_calibrate_collect();
-        else if (calib_state == CALIB_IDLE) mag_sample_new = qmc5883p_update_yaw();
+        else if (calib_state == CALIB_IDLE) {
+            mag_sample_new = qmc5883p_update_yaw();
+            if (mag_sample_new) last_mag_sample_ms=now_ms;
+        }
     }
     slave_board_process_battery(slave_scheduler_now_ms());
     battery_voltage = slave_board_battery_voltage();
@@ -247,34 +244,56 @@ static void prepare_display_line(uint8_t row, const char *text)
     while (i < 16u) line[i++] = ' ';
     line[16] = '\0';
 }
-static void run_display_task(uint32_t now_ms)
+void slave_app_capture_display(slave_display_snapshot_t *snapshot)
+{
+    uint32_t elapsed = slave_scheduler_now_ms() - calib_started_ms;
+    optical_flow_get_snapshot(&snapshot->flow);
+    snapshot->yaw = qmc5883p_yaw_deg;
+    snapshot->temperature = temperature;
+    snapshot->battery = battery_voltage;
+    snapshot->altitude_m = relative_altitude_m;
+    snapshot->baro_valid = baro_valid;
+    snapshot->calibrating = calib_state != CALIB_IDLE;
+    snapshot->calibration_remaining_ms = elapsed < SLAVE_CALIBRATION_MS ? SLAVE_CALIBRATION_MS - elapsed : 0u;
+}
+/* 显示任务独占 display_* / OLED / SPI2；snapshot是队列复制的值，
+ * 不是指向采集任务栈的指针。切换到采集任务时，快照仍然有效。
+ */
+static void format_tenths(char *out,unsigned capacity,const char *label,float value,const char *unit)
+{
+    int32_t v=scale_float(value,10.0f,-1000000,1000000);
+    unsigned long magnitude=(unsigned long)(v<0?-v:v);
+    snprintf(out,capacity,"%s%s%lu.%lu%s",label,v<0?"-":"",magnitude/10u,magnitude%10u,unit);
+}
+static void prepare_display(const slave_display_snapshot_t *snapshot)
 {
     char text[40];
-    optical_flow_data_t flow;
-    if (display_cursor < 64u || osd_step < 4u) statistics.display_restarts++;
-    optical_flow_get_snapshot(&flow);
+    optical_flow_data_t flow = snapshot->flow;
+    if (display_cursor < 64u || osd_step < 7u) display_restart_count++;
     display_flow = flow;
-    display_yaw = qmc5883p_yaw_deg;
-    display_temperature = temperature;
-    display_battery = battery_voltage;
+    display_yaw = snapshot->yaw;
+    display_temperature = snapshot->temperature;
+    display_battery = snapshot->battery;
+    display_altitude = snapshot->altitude_m*100.0f;
+    display_calibration_seconds = snapshot->calibrating?(snapshot->calibration_remaining_ms+999u)/1000u:0u;
     display_cursor = 0u;
     osd_step = 0u;
-    if (baro_valid != 0u) {
-        snprintf(text, sizeof(text), "T:%.1fC          ", (double)temperature);
+    if (snapshot->baro_valid != 0u) {
+        format_tenths(text,sizeof(text),"T:",snapshot->temperature,"C");
         prepare_display_line(1, text);
-        snprintf(text, sizeof(text), "H:%.1fcm        ", (double)relative_altitude_m * 100.0);
+        format_tenths(text,sizeof(text),"H:",snapshot->altitude_m*100.0f,"cm");
         prepare_display_line(2, text);
     } else {
         prepare_display_line(1, "BMP390 ERR");
         prepare_display_line(2, "H: invalid");
     }
-    snprintf(text, sizeof(text), "Yaw:%.1f        ", (double)qmc5883p_yaw_deg);
+    format_tenths(text,sizeof(text),"Yaw:",snapshot->yaw,"");
     prepare_display_line(3, text);
-    if (calib_state != CALIB_IDLE) {
-        uint32_t elapsed = now_ms - calib_started_ms;
-        uint32_t remaining = elapsed < SLAVE_CALIBRATION_MS ? SLAVE_CALIBRATION_MS - elapsed : 0u;
+    if (snapshot->calibrating != 0u) {
+        uint32_t remaining = snapshot->calibration_remaining_ms;
         snprintf(text, sizeof(text), "CAL:%lu s       ", (unsigned long)((remaining + 999u) / 1000u));
-    } else snprintf(text, sizeof(text), "D:%.1fcm F:%ld", (double)flow.distance / 10.0, (long)flow.flow_x);
+    } else snprintf(text,sizeof(text),"D:%u.%ucm Q:%u",(unsigned)(flow.distance/10u),
+        (unsigned)(flow.distance%10u),(unsigned)flow.signal_strength);
     prepare_display_line(4, text);
 }
 /* At most one OSD field or one OLED character per main-loop turn.
@@ -283,12 +302,15 @@ static void run_display_task(uint32_t now_ms)
  */
 static void process_display(void)
 {
-    if (osd_step < 4u) {
+    if (osd_step < 7u) {
         switch (osd_step++) {
         case 0u: osd_display_int_padded(0, 7, 5, display_flow.distance); break;
         case 1u: osd_display_float(1, 4, 3, 1, display_yaw); break;
-        case 2u: osd_display_int_padded(15, 13, 4, (int)(display_temperature * 10.0f)); break;
-        default: osd_display_float(14, 3, 1, 1, display_battery); break;
+        case 2u: osd_display_float(15,13,3,1,display_temperature); break;
+        case 3u: osd_display_float(14,3,2,2,display_battery); break;
+        case 4u: osd_display_int_padded(0,0,3,display_flow.signal_strength); break;
+        case 5u: osd_display_int_padded(4,15,3,(int32_t)display_calibration_seconds); break;
+        default: osd_display_float(13,2,5,1,display_altitude); break;
         }
         return;
     }
@@ -303,6 +325,11 @@ static void process_display(void)
         }
     }
 }
+void slave_app_display_step(const slave_display_snapshot_t *snapshot)
+{
+    if (snapshot != 0) prepare_display(snapshot);
+    process_display(); /* 一次仅一个OSD字段或OLED字符，然后让出CPU */
+}
 void slave_app_process(void)
 {
     uint32_t now_ms = slave_scheduler_now_ms();
@@ -311,10 +338,25 @@ void slave_app_process(void)
     slave_board_process_battery(now_ms);
     optical_flow_process(now_ms);
     process_inputs(now_ms);
+    if ((uint32_t)(now_ms-last_sensor_retry_ms)>=1000u && calib_state==CALIB_IDLE) {
+        last_sensor_retry_ms=now_ms;
+        if(!baro_available || (uint32_t)(now_ms-last_baro_sample_ms)>=1000u)baro_available=barometer_init();
+        if(!mag_ok || (uint32_t)(now_ms-last_mag_sample_ms)>=1000u)mag_ok=(uint8_t)(qmc5883p_init()==0u);
+    }
     process_calibration(now_ms);
     now_ms = slave_scheduler_now_ms(); /* Flash save may have advanced the clock. */
     if (slave_scheduler_take(SLAVE_TASK_SENSORS) != 0u) run_sensor_task(now_ms);
-    if (slave_scheduler_take(SLAVE_TASK_DISPLAY) != 0u) run_display_task(slave_scheduler_now_ms());
+    if (slave_scheduler_take(SLAVE_TASK_DISPLAY) != 0u) {
+        slave_display_snapshot_t snapshot;
+        slave_app_capture_display(&snapshot);
+        prepare_display(&snapshot);
+    }
     process_display();
 }
-void slave_app_get_stats(slave_app_stats_t *stats) { if (stats != 0) *stats = statistics; }
+void slave_app_get_stats(slave_app_stats_t *stats)
+{
+    if (stats != 0) {
+        *stats = statistics;
+        stats->display_restarts = display_restart_count;
+    }
+}

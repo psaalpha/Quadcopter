@@ -187,7 +187,7 @@
             <hadIRAM2>0</hadIRAM2>
             <hadIROM2>0</hadIROM2>
             <StupSel>8</StupSel>
-            <useUlib>0</useUlib>
+            <useUlib>1</useUlib>
             <EndSel>0</EndSel>
             <uLtcg>0</uLtcg>
             <nSecure>0</nSecure>
@@ -249,7 +249,7 @@
               <IROM>
                 <Type>1</Type>
                 <StartAddress>0x8000000</StartAddress>
-                <Size>0xFC00</Size>
+                <Size>0xF800</Size>
               </IROM>
               <XRAM>
                 <Type>0</Type>
@@ -274,7 +274,7 @@
               <OCR_RVCT4>
                 <Type>1</Type>
                 <StartAddress>0x8000000</StartAddress>
-                <Size>0xFC00</Size>
+                <Size>0xF800</Size>
               </OCR_RVCT4>
               <OCR_RVCT5>
                 <Type>1</Type>
@@ -311,7 +311,7 @@
           </ArmAdsMisc>
           <Cads>
             <interw>1</interw>
-            <Optim>1</Optim>
+            <Optim>3</Optim>
             <oTime>0</oTime>
             <SplitLS>0</SplitLS>
             <OneElfS>1</OneElfS>
@@ -661,6 +661,16 @@
               <FileType>5</FileType>
               <FilePath>..\Platform\STM32F1\System\Delay.h</FilePath>
             </File>
+            <File>
+              <FileName>flash_config.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Platform\STM32F1\System\flash_config.c</FilePath>
+            </File>
+            <File>
+              <FileName>flash_config.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Platform\STM32F1\System\flash_config.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -801,6 +811,26 @@
               <FileType>5</FileType>
               <FilePath>..\Shared\Protocol\inter_mcu_protocol.h</FilePath>
             </File>
+            <File>
+              <FileName>cv0850.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Protocol\cv0850.c</FilePath>
+            </File>
+            <File>
+              <FileName>cv0850.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Protocol\cv0850.h</FilePath>
+            </File>
+            <File>
+              <FileName>config_journal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Protocol\config_journal.c</FilePath>
+            </File>
+            <File>
+              <FileName>config_journal.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Protocol\config_journal.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -865,6 +895,21 @@
               <FileName>periodic_tasks.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\Shared\Scheduling\periodic_tasks.h</FilePath>
+            </File>
+            <File>
+              <FileName>task_health.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Scheduling\task_health.c</FilePath>
+            </File>
+            <File>
+              <FileName>task_health.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Scheduling\task_health.h</FilePath>
+            </File>
+            <File>
+              <FileName>event_notify.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Scheduling\event_notify.h</FilePath>
             </File>
           </Files>
         </Group>

@@ -1,3 +1,9 @@
+#include "stm32f10x.h"
+#include "motor_pwm.h"
+static void board_fault_stop(void)
+{
+    __disable_irq();motor_pwm_set_minimum_output();for(;;){}
+}
 /**
   ******************************************************************************
   * @file    Project/STM32F10x_StdPeriph_Template/stm32f10x_it.c 
@@ -55,10 +61,8 @@ void NMI_Handler(void)
   */
 void HardFault_Handler(void)
 {
-  /* Go to infinite loop when Hard Fault exception occurs */
-  while (1)
-  {
-  }
+  /* 异常不能只空转并维持旧PWM；写安全输出，停止喂狗等待复位。 */
+  board_fault_stop();
 }
 
 /**
@@ -68,10 +72,8 @@ void HardFault_Handler(void)
   */
 void MemManage_Handler(void)
 {
-  /* Go to infinite loop when Memory Manage exception occurs */
-  while (1)
-  {
-  }
+  /* 异常不能只空转并维持旧PWM；写安全输出，停止喂狗等待复位。 */
+  board_fault_stop();
 }
 
 /**
@@ -81,10 +83,8 @@ void MemManage_Handler(void)
   */
 void BusFault_Handler(void)
 {
-  /* Go to infinite loop when Bus Fault exception occurs */
-  while (1)
-  {
-  }
+  /* 异常不能只空转并维持旧PWM；写安全输出，停止喂狗等待复位。 */
+  board_fault_stop();
 }
 
 /**
@@ -94,10 +94,8 @@ void BusFault_Handler(void)
   */
 void UsageFault_Handler(void)
 {
-  /* Go to infinite loop when Usage Fault exception occurs */
-  while (1)
-  {
-  }
+  /* 异常不能只空转并维持旧PWM；写安全输出，停止喂狗等待复位。 */
+  board_fault_stop();
 }
 
 /**
@@ -105,9 +103,7 @@ void UsageFault_Handler(void)
   * @param  None
   * @retval None
   */
-void SVC_Handler(void)
-{
-}
+void SVC_Handler(void) {}
 
 /**
   * @brief  This function handles Debug Monitor exception.
@@ -123,18 +119,14 @@ void DebugMon_Handler(void)
   * @param  None
   * @retval None
   */
-void PendSV_Handler(void)
-{
-}
+void PendSV_Handler(void) {}
 
 /**
   * @brief  This function handles SysTick Handler.
   * @param  None
   * @retval None
   */
-void SysTick_Handler(void)
-{
-}
+void SysTick_Handler(void) {}
 
 /******************************************************************************/
 /*                 STM32F10x Peripherals Interrupt Handlers                   */

@@ -87,34 +87,34 @@ static void test_slave(void) {
 }
 static void test_blue(void) {
     char overlong[140];
-    uint32_t mask;
+    flight_command_t command;
     unsigned i;
     bluetooth_serial_init();
     blue_feed("[slider,PKp,1][slider,PKp,2][slider,PKi,0.5]");
-    assert(bluetooth_rx_ready==0u && bluetooth_serial_get_pitch_kp()==0.0f);
-    assert(bluetooth_serial_process()); mask=bluetooth_serial_parse_parameters();
-    assert(mask==PID_PARAM_UPDATE_PKP && bluetooth_serial_get_pitch_kp()==1.0f);
-    assert(bluetooth_serial_process()); bluetooth_serial_parse_parameters(); assert(bluetooth_serial_get_pitch_kp()==2.0f);
-    assert(bluetooth_serial_process()); bluetooth_serial_parse_parameters(); assert(bluetooth_serial_get_pitch_ki()==0.5f);
+    assert(bluetooth_rx_ready==0u);
+    assert(bluetooth_serial_process()); assert(bluetooth_serial_take_command(&command)==1);
+    assert(command.op==FC_SET && command.id==FP_PKP && command.value==1.0f);
+    assert(bluetooth_serial_process()); assert(bluetooth_serial_take_command(&command)==1); assert(command.value==2.0f);
+    assert(bluetooth_serial_process()); assert(bluetooth_serial_take_command(&command)==1); assert(command.value==0.5f);
     assert(!bluetooth_serial_process());
     blue_feed("[slider,PKp,"); assert(!bluetooth_serial_process());
-    blue_feed("3]"); assert(bluetooth_serial_process()); bluetooth_serial_parse_parameters(); assert(bluetooth_serial_get_pitch_kp()==3.0f);
+    blue_feed("3]"); assert(bluetooth_serial_process()); assert(bluetooth_serial_take_command(&command)==1); assert(command.value==3.0f);
     memset(overlong,'a',sizeof(overlong)); overlong[0]='[';
     overlong[sizeof(overlong)-2u]=']'; overlong[sizeof(overlong)-1u]='\0';
     blue_feed(overlong); for(i=0;i<3u;++i) assert(!bluetooth_serial_process());
     assert(bluetooth_serial_get_rx_frame_errors()==1u);
-    blue_feed("[slider,PKp,4]"); assert(bluetooth_serial_process()); bluetooth_serial_parse_parameters();
-    assert(bluetooth_serial_get_pitch_kp()==4.0f);
+    blue_feed("[slider,PKp,4]"); assert(bluetooth_serial_process()); assert(bluetooth_serial_take_command(&command)==1);
+    assert(command.value==4.0f);
     /* Continuous input: half-full IRQ can wake service without IDLE. */
     memset(overlong,'x',128u);
     feed(DMA1_Channel5,(uint8_t *)overlong,128u,DMA1_FLAG_HT5,DMA1_FLAG_TC5,DMA1_Channel5_IRQHandler);
     for(i=0;i<3u;++i) assert(!bluetooth_serial_process());
-    blue_feed("[slider,PKp,5]"); assert(bluetooth_serial_process()); bluetooth_serial_parse_parameters();
-    assert(bluetooth_serial_get_pitch_kp()==5.0f);
+    blue_feed("[slider,PKp,5]"); assert(bluetooth_serial_process()); assert(bluetooth_serial_take_command(&command)==1);
+    assert(command.value==5.0f);
     for(i=0;i<3u;++i) feed(DMA1_Channel5,(uint8_t *)overlong,128u,DMA1_FLAG_HT5,DMA1_FLAG_TC5,DMA1_Channel5_IRQHandler);
     assert(!bluetooth_serial_process()); assert(bluetooth_serial_get_rx_overruns()==1u);
-    blue_feed("[slider,PKp,6]"); assert(bluetooth_serial_process()); bluetooth_serial_parse_parameters();
-    assert(bluetooth_serial_get_pitch_kp()==6.0f);
+    blue_feed("[slider,PKp,6]"); assert(bluetooth_serial_process()); assert(bluetooth_serial_take_command(&command)==1);
+    assert(command.value==6.0f);
     /* Busy DMA telemetry is skipped, not waited on or overwritten. */
     bluetooth_serial_send_dma((uint8_t *)"one",3u);
     bluetooth_serial_send_dma((uint8_t *)"two",3u);

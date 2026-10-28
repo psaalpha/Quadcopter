@@ -1,66 +1,46 @@
 # Quadcopter
 
-基于双 STM32F103C8T6 的四旋翼飞控固件，使用 C、STM32 SPL 和 Keil ARMCC5。
-当前 `baremetal` 分支持续完善裸机实现，采用定时器事件与主循环协作式调度；`freertos` 分支维护 FreeRTOS 实现。
-
-主控负责遥控接收、姿态估计、串级 PID 和电机输出；从控负责传感器采集、显示、电池监测和数据发送。
+双 STM32F103C8T6 四旋翼固件，C、STM32 SPL，支持 GNU ARM 与 Keil ARMCC5。
+当前 `baremetal` 分支采用TIM2 周期事件驱动的裸机循环。仓库只维护 `baremetal` 和 `freertos` 两条分支，默认分支为 `freertos`。
 
 ## 功能
 
-- MPU6050 姿态估计，100Hz 角度外环、500Hz 角速度内环和四路 50Hz PWM。
-- TIM2 毫秒时基与周期事件，通信解析、传感器服务和控制计算在主循环执行。
-- CRSF 遥控接收：420000 baud、DMA 接收、CRC8 校验和通道解包。
-- 主从通信：115200 baud、41 字节固定帧、版本、序号和 CRC16。
-- 上电低油门锁、300ms 遥控失联保护和看门狗。
-- BMP390、QMC5883P 和光流采集，以及高度/光流辅助控制接口。
+- MPU6050 姿态估计、静止零偏校准，100Hz 角度环、500Hz 角速度环和四路 50Hz ESC PWM。
+- CRSF DMA 接收/校验、CH8 ARM/DISARM、失联与 IMU 故障保护、电池解锁检查。
+- CV-0850 原生/MSPv2 校验与累计、测距和物理位移换算、高度/水平位置辅助控制、失效恢复。
+- QMC5883P 三轴偏移/比例校准、磁航向倾斜补偿、异常拒绝与航向归零。
+- BMP390 相对高度与按键归零，电压采样/蜂鸣器、舵机、OLED/OSD 分步刷新。
+- 蓝牙完整调参、读取/保存/加载/默认值、状态/电机/导航遥测和受限无桨试转。
+- 主从 v2 / 53 字节 / CRC16；双页 Flash 参数保存，写入中断保留旧记录。
 
-辅助 PID 默认零增益，传感器方向、控制参数和实际运行时序仍需验证。构建与硬件验证状态见[测试与验证](docs/TESTING.md)。
+两条分支均完成电脑回归和主从固件构建。实机轴向、尺度、增益、时延和飞行效果尚未验证；导航默认关闭，辅助增益默认零，需校准调参后启用。
 
-## 目录
+## 目录与使用
 
-```text
-Master_MCU/       主控固件
-Slave_MCU/        从控固件
-Shared/           共享协议、调度和 DMA 辅助模块
-Platform/STM32F1/ CMSIS、SPL 和公共延时
-tests/host/       主机测试与寄存器模型
-tools/            工程校验与固件构建脚本
-docs/             工程文档
-```
-
-## 构建
-
-Linux 主机完整回归：
+`Master_MCU/` 控制、遥控和电机；`Slave_MCU/` 传感器、显示与电压；`Shared/` 公共协议、参数与调度；`Platform/` 芯片平台；`tests/host/` 回归；`tools/` 构建检查；`docs/` 六份使用文档。
 
 ```sh
 python tools/validate_project.py
+python tools/build_gcc.py
 cmake -S . -B build/host -DCMAKE_BUILD_TYPE=Release
 cmake --build build/host
 ctest --test-dir build/host --output-on-failure
 ```
 
-Windows 双目标固件构建：
-
-```powershell
-.\tools\build_firmware.ps1
-```
-
-工具链设置、Windows 主机测试和烧录步骤见[构建说明](docs/BUILD.md)。
-
 ## 文档
 
-- [架构](docs/ARCHITECTURE.md)：模块职责、裸机调度、周期、中断和数据所有权。
-- [构建](docs/BUILD.md)：环境、测试命令、Keil 编译和成对烧录。
-- [测试与验证](docs/TESTING.md)：测试覆盖、已有记录和待验证项。
-- [硬件资源](docs/PINOUT.md)：引脚、定时器和 DMA 分配。
-- [主从协议](docs/PROTOCOL.md)：41 字节帧格式和兼容约定。
-- [安全状态](docs/SAFETY.md)：启动锁、失联恢复和已知限制。
+- [架构](docs/ARCHITECTURE.md)：模块、周期、数据所有权。
+- [构建](docs/BUILD.md)：工具链、固件与烧录。
+- [测试记录](docs/TESTING.md)：覆盖、资源和实机待验证项。
+- [硬件资源](docs/PINOUT.md)：引脚、通道、定时器与 DMA。
+- [通信与参数](docs/PROTOCOL.md)：53 字节帧、CV-0850、蓝牙指令和遥测。
+- [安全操作](docs/SAFETY.md)：CH8 解锁、校准、辅助模式、试转和故障行为。
 
 ## 分支
 
 | 分支 | 用途 |
 |---|---|
-| `baremetal` | 持续完善裸机调度、驱动、控制和通信 |
-| `freertos` | 维护 FreeRTOS 任务、通知、队列与实时系统实现；默认分支 |
+| `baremetal` | 持续完善裸机驱动、控制与通信，不包含 RTOS 内核 |
+| `freertos` | 同一功能集的 FreeRTOS 任务实现，默认分支 |
 
-两条分支分别维护各自运行模型。通用修复按需同步；独立功能或修复使用临时分支，完成后合入对应版本并删除。
+通用功能与修复保持一致，各自保留自己的运行入口。

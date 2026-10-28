@@ -144,15 +144,15 @@ void slave_board_start_tick(void)
     TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
     TIM_ITConfig(TIM2, TIM_IT_Update, ENABLE);
     interrupt_config.NVIC_IRQChannel = TIM2_IRQn;
-    interrupt_config.NVIC_IRQChannelPreemptionPriority = 1u;
-    interrupt_config.NVIC_IRQChannelSubPriority = 1u;
+    interrupt_config.NVIC_IRQChannelPreemptionPriority = 6u;
+    interrupt_config.NVIC_IRQChannelSubPriority = 0u;
     interrupt_config.NVIC_IRQChannelCmd = ENABLE;
     NVIC_Init(&interrupt_config);
     millisecond_clock_init();
     TIM_Cmd(TIM2, ENABLE);
 }
 
-void slave_board_init_interrupts(void) { NVIC_PriorityGroupConfig(NVIC_PriorityGroup_2); }
+void slave_board_init_interrupts(void) { NVIC_PriorityGroupConfig(NVIC_PriorityGroup_4); }
 void slave_board_init(void)
 {
     servo_init();

@@ -53,7 +53,7 @@ int main(void)
     assert(delayed.remaining_ms[0] == 1u && delayed.remaining_ms[1] == 3u);
     assert(delayed.overruns[0] == 51u);
     flight_safety_init(&safety);
-    flight_safety_on_valid_rc_frame(&safety, UINT32_MAX - 99u, 0u, 5u);
+    flight_safety_on_valid_rc_frame(&safety, UINT32_MAX - 99u, 0u, 5u, 0u, 1u);
     assert(flight_safety_check_timeout(&safety, 199u, BOARD_RC_FAILSAFE_TIMEOUT_MS) == 0u);
     assert(flight_safety_check_timeout(&safety, 200u, BOARD_RC_FAILSAFE_TIMEOUT_MS) == 1u);
     puts("scheduler tests passed");
