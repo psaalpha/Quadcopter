@@ -1,4 +1,4 @@
-#include "rtos_support.h"
+#include "event_notify.h"
 /**
   ******************************************************************************
   * @file    master_link.c
@@ -254,6 +254,11 @@ static void slave_link_apply_packet(const inter_mcu_sensor_data_t *packet)
     slave_sensor_data.pressure_pa = packet->pressure_pa;
     slave_sensor_data.temperature_centi_c = packet->temperature_centi_c;
     slave_sensor_data.battery_mv = packet->battery_mv;
+    slave_sensor_data.mag_x = packet->mag_x;
+    slave_sensor_data.mag_y = packet->mag_y;
+    slave_sensor_data.mag_z = packet->mag_z;
+    slave_sensor_data.flow_integration_us = packet->flow_integration_us;
+    slave_sensor_data.flow_epoch = packet->flow_epoch;
     slave_sensor_data.frames_received++;
     slave_sensor_data.updated = 1;
 }

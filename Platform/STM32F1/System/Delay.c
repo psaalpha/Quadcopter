@@ -2,7 +2,7 @@
 #include "Delay.h"
 #define DELAY_DWT_CTRL   (*((volatile uint32_t *)0xE0001000u))
 #define DELAY_DWT_CYCCNT (*((volatile uint32_t *)0xE0001004u))
-/* SysTick 已交给 FreeRTOS，驱动不能修改它的 LOAD/VAL/CTRL。
+/* 延时不占用 SysTick，驱动不能修改它的 LOAD/VAL/CTRL。
  * CYCCNT 是自由运行计数器：两个任务延时可交叠，各自保留自己的起点。
  * 中断抢占只会延长本次等待，不会让 I2C 低于最小脉宽；不是精密波形发生器。
  * 1ms 分块避免 32 位乘法/回绕歧义；不复位 CYCCNT，避免破坏毫秒时钟。

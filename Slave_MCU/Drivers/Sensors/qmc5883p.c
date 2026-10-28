@@ -11,6 +11,7 @@
 #include "stm32f10x.h"
 #include "stm32f10x_flash.h"
 #include "Delay.h"
+#include "flash_config.h"
 
 
 
@@ -24,72 +25,47 @@ int16_t qmc_z_raw = 0;
 /* 硬铁校准参数 */
 static int16_t qmc_x_offset = 0;
 static int16_t qmc_y_offset = 0;
+static int16_t qmc_z_offset = 0;
+static float qmc_scale[3]={1.0f,1.0f,1.0f};
+static int16_t qmc_z_max=-32768,qmc_z_min=32767;
 int16_t qmc_x_max = -32768, qmc_x_min = 32767;
 int16_t qmc_y_max = -32768, qmc_y_min = 32767;
 
 #define M_PI  3.1415926535f
 static uint16_t calibration_samples;
 
-/* ==================== Flash 存储（最后一页 0x0800FC00） ==================== */
+/* 双页参数存储；以下地址仅用于兼容旧版两轴校准记录。 */
 #define CALIB_FLASH_ADDR    0x0800FC00
 #define CALIB_FLASH_MAGIC   0x514D4341   // "QMCA"
 
 /** 校准数据保存到 Flash，成功返回 0，失败返回 1 */
 static uint8_t qmc5883p_calib_save_to_flash(void)
 {
-    FLASH_Status fs;
-    uint32_t interrupt_mask = __get_PRIMASK();
-    __disable_irq();   /* Caller pauses optical RX before flash stalls. */
-
-    FLASH_Unlock();
-
-    /* 清除所有挂起的错误标志，防止之前的状态干扰 */
-    FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_PGERR | FLASH_FLAG_WRPRTERR);
-
-    /* 擦除校准页 */
-    fs = FLASH_ErasePage(CALIB_FLASH_ADDR);
-    if (fs != FLASH_COMPLETE) goto fail;
-
-    /* 写入 X 偏移 */
-    fs = FLASH_ProgramHalfWord(CALIB_FLASH_ADDR + 4, (uint16_t)qmc_x_offset);
-    if (fs != FLASH_COMPLETE) goto fail;
-
-    /* 写入 Y 偏移 */
-    fs = FLASH_ProgramHalfWord(CALIB_FLASH_ADDR + 6, (uint16_t)qmc_y_offset);
-    if (fs != FLASH_COMPLETE) goto fail;
-
-    /* 写入 Magic 低16位 */
-    fs = FLASH_ProgramHalfWord(CALIB_FLASH_ADDR, (uint16_t)(CALIB_FLASH_MAGIC & 0xFFFF));
-    if (fs != FLASH_COMPLETE) goto fail;
-
-    /* 写入 Magic 高16位 */
-    fs = FLASH_ProgramHalfWord(CALIB_FLASH_ADDR + 2, (uint16_t)(CALIB_FLASH_MAGIC >> 16));
-    if (fs != FLASH_COMPLETE) goto fail;
-
-    FLASH_Lock();
-    __set_PRIMASK(interrupt_mask);
-    return 0;   // 成功
-
-fail:
-    FLASH_Lock();
-    __set_PRIMASK(interrupt_mask);
-    return 1;   // 失败
+    float image[6]={(float)qmc_x_offset,(float)qmc_y_offset,(float)qmc_z_offset,
+        qmc_scale[0],qmc_scale[1],qmc_scale[2]};
+    return flash_config_save(0x2001u,image,sizeof(image))?0u:1u;
 }
-
 static void qmc5883p_calib_load_from_flash(void)
 {
-    uint32_t magic = (*(__IO uint32_t *)CALIB_FLASH_ADDR);
-    if (magic != CALIB_FLASH_MAGIC) return;         // 未校准过
-
-    int16_t x = (int16_t)(*(__IO uint16_t *)(CALIB_FLASH_ADDR + 4));
-    int16_t y = (int16_t)(*(__IO uint16_t *)(CALIB_FLASH_ADDR + 6));
-
-    if (x > -30000 && x < 30000 && y > -30000 && y < 30000) {
-        qmc_x_offset = x;
-        qmc_y_offset = y;
+    float image[6];unsigned i;
+    if(flash_config_load(0x2001u,image,sizeof(image))) {
+        for(i=0u;i<3u;i++)if(!(image[i]>-30000 && image[i]<30000 && image[3u+i]>=.25f && image[3u+i]<=4))return;
+        qmc_x_offset=(int16_t)image[0];qmc_y_offset=(int16_t)image[1];qmc_z_offset=(int16_t)image[2];
+        for(i=0u;i<3u;i++)qmc_scale[i]=image[3u+i];
+    } else if(*(__IO uint32_t *)CALIB_FLASH_ADDR==CALIB_FLASH_MAGIC) {
+        /* Read the previous two-axis layout once; a new save uses two pages. */
+        int16_t x=(int16_t)*(__IO uint16_t *)(CALIB_FLASH_ADDR+4u);
+        int16_t y=(int16_t)*(__IO uint16_t *)(CALIB_FLASH_ADDR+6u);
+        if(x>-30000 && x<30000 && y>-30000 && y<30000){qmc_x_offset=x;qmc_y_offset=y;}
     }
 }
-
+static int16_t calibrated_axis(int16_t raw,int16_t offset,float scale)
+{
+    float value=((float)raw-(float)offset)*scale;
+    if(value>32767)value=32767;
+    if(value< -32768)value=-32768;
+    return (int16_t)value;
+}
 
 /* ==================== 软件 I2C 引脚层（static，模块私有） ==================== */
 #define I2C_SCL_PORT  GPIOB
@@ -253,9 +229,9 @@ static uint8_t qmc5883p_read_xyz(void)
     if (x == 0 && y == 0) return 0u;        // 过滤无效数据
 
     /* 应用硬铁校准偏移 */
-    qmc_x_raw = x - qmc_x_offset;
-    qmc_y_raw = y - qmc_y_offset;
-    qmc_z_raw = z;
+    qmc_x_raw = calibrated_axis(x,qmc_x_offset,qmc_scale[0]);
+    qmc_y_raw = calibrated_axis(y,qmc_y_offset,qmc_scale[1]);
+    qmc_z_raw = calibrated_axis(z,qmc_z_offset,qmc_scale[2]);
 
     /* 计算航向角 0~360° */
     qmc5883p_yaw_deg = atan2f((float)qmc_y_raw, (float)qmc_x_raw) * (180.0f / M_PI);
@@ -304,6 +280,7 @@ void qmc5883p_calibrate_start(void)
     calibration_samples = 0u;
     qmc_x_max = -32768; qmc_x_min = 32767;
     qmc_y_max = -32768; qmc_y_min = 32767;
+    qmc_z_max = -32768; qmc_z_min = 32767;
 }
 
 void qmc5883p_calibrate_collect(void)
@@ -316,30 +293,38 @@ void qmc5883p_calibrate_collect(void)
 
     int16_t x = (int16_t)((buf[1] << 8) | buf[0]);
     int16_t y = (int16_t)((buf[3] << 8) | buf[2]);
+    int16_t z = (int16_t)((buf[5] << 8) | buf[4]);
 
     calibration_samples++;
     if (x > qmc_x_max) qmc_x_max = x;
     if (x < qmc_x_min) qmc_x_min = x;
     if (y > qmc_y_max) qmc_y_max = y;
     if (y < qmc_y_min) qmc_y_min = y;
+    if (z > qmc_z_max) qmc_z_max = z;
+    if (z < qmc_z_min) qmc_z_min = z;
 }
 
 uint8_t qmc5883p_calibrate_end(void)
 {
-    int16_t previous_x = qmc_x_offset;
-    int16_t previous_y = qmc_y_offset;
-    if (calibration_samples < 2u || qmc_x_max <= qmc_x_min || qmc_y_max <= qmc_y_min) return 1u;
-    qmc_x_offset = (qmc_x_max + qmc_x_min) / 2;
-    qmc_y_offset = (qmc_y_max + qmc_y_min) / 2;
-    /* Magic is programmed last. Verify flash directly, rather than comparing
-     * RAM values that would be unchanged if loading invalid flash failed.
-     */
-    if (qmc5883p_calib_save_to_flash() != 0u ||
-        *(__IO uint32_t *)CALIB_FLASH_ADDR != CALIB_FLASH_MAGIC ||
-        (int16_t)*(__IO uint16_t *)(CALIB_FLASH_ADDR + 4u) != qmc_x_offset ||
-        (int16_t)*(__IO uint16_t *)(CALIB_FLASH_ADDR + 6u) != qmc_y_offset) {
-        qmc_x_offset = previous_x;
-        qmc_y_offset = previous_y;
+    float radius[3],average,old_scale[3];unsigned i;
+    int16_t previous[3]={qmc_x_offset,qmc_y_offset,qmc_z_offset};
+    radius[0]=((float)qmc_x_max-(float)qmc_x_min)*.5f;
+    radius[1]=((float)qmc_y_max-(float)qmc_y_min)*.5f;
+    radius[2]=((float)qmc_z_max-(float)qmc_z_min)*.5f;
+    if(calibration_samples<40u || radius[0]<50 || radius[1]<50 || radius[2]<50)return 1u;
+    average=(radius[0]+radius[1]+radius[2])/3.0f;
+    for(i=0u;i<3u;i++)if(average/radius[i]<.25f || average/radius[i]>4)return 1u;
+    qmc_x_offset=(int16_t)(((int32_t)qmc_x_max+qmc_x_min)/2);
+    qmc_y_offset=(int16_t)(((int32_t)qmc_y_max+qmc_y_min)/2);
+    qmc_z_offset=(int16_t)(((int32_t)qmc_z_max+qmc_z_min)/2);
+    if(qmc_x_offset<=-30000 || qmc_x_offset>=30000 || qmc_y_offset<=-30000 ||
+       qmc_y_offset>=30000 || qmc_z_offset<=-30000 || qmc_z_offset>=30000) {
+        qmc_x_offset=previous[0];qmc_y_offset=previous[1];qmc_z_offset=previous[2];return 1u;
+    }
+    for(i=0u;i<3u;i++){old_scale[i]=qmc_scale[i];qmc_scale[i]=average/radius[i];}
+    if(qmc5883p_calib_save_to_flash()!=0u) {
+        qmc_x_offset=previous[0];qmc_y_offset=previous[1];qmc_z_offset=previous[2];
+        for(i=0u;i<3u;i++)qmc_scale[i]=old_scale[i];
         return 1u;
     }
     return 0u;

@@ -1,5 +1,6 @@
 #include "stm32f10x.h"
 #include "optical_flow.h"
+#include "cv0850.h"
 #include "master_link.h"
 #include "board_inputs.h"
 #include <assert.h>
@@ -41,11 +42,13 @@ static void TestOpticalFlow(void)
     uint8_t flow[18] = {0x24u,0x58u,0x3Cu,0u,2u,0x1Fu,9u,0u,0xF5u,
                        0x24u,0u,0u,0u,0xFFu,0xFFu,0xFFu,0xFFu,0u};
     uint8_t range[14] = {0x24u,0x58u,0x3Cu,0u,1u,0x1Fu,5u,0u,80u,
-                         0xDCu,5u,1u,0u,0u};
+                         0xDCu,5u,0u,0u,0u};
     uint8_t noise[256] = {0u};
     optical_flow_data_t snapshot;
     optical_flow_stats_t stats;
     unsigned i;
+    flow[17] = cv0850_crc8(flow+3,14u);
+    range[13] = cv0850_crc8(range+3,10u);
     optical_flow_init();
     Feed(flow, 7u); Idle(); optical_flow_process(1u);
     assert(optical_flow_is_valid() == 0u); /* A partial header survives IDLE. */
@@ -56,7 +59,7 @@ static void TestOpticalFlow(void)
     optical_flow_get_snapshot(&snapshot);
     assert(snapshot.flow_x == 36 && snapshot.flow_y == -1);
     assert(snapshot.distance == 1500u && snapshot.signal_strength == 80u);
-    assert(snapshot.checksum_valid == 0u); /* Original unconfirmed protocol. */
+    assert(snapshot.checksum_valid == 1u);
     /* Continuous stream with no IDLE: HT notification, bounded batches. */
     for (i = 0u; i < 8u; ++i) Feed(flow, sizeof(flow));
     for (i = 0u; i < 4u; ++i) optical_flow_process(3u);

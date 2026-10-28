@@ -189,7 +189,7 @@ void pid_reset_navigation(void)
 }
 
 /* 高度输出单位为油门百分比；光流 X/Y 输出单位为姿态目标角（度）。
- * flow_x/y 仍是传感器原始量，未做相机尺度标定，不能当作米制位置。
+ * flow_x/y 是导航估计器输出的水平位置，单位 mm；误差换算为 cm。
  */
 void pid_update_navigation(float current_altitude_cm,
                                          int32_t flow_x, int32_t flow_y,
@@ -218,7 +218,7 @@ void pid_update_navigation(float current_altitude_cm,
     altitude_pid_out = pid_clamp_float(altitude_pid_out, -ALTITUDE_OUT_LIMIT, ALTITUDE_OUT_LIMIT);
 
     /* 先转 float 再相减，避免两个 int32 原始积分量相减时发生有符号溢出。 */
-    float position_x_err = (float)target_flow_x - (float)flow_x;
+    float position_x_err = ((float)target_flow_x - (float)flow_x) * .1f;
     position_x_integral += position_x_ki * position_x_err * dt_s;
     position_x_integral = pid_clamp_float(position_x_integral, -POSITION_I_LIMIT, POSITION_I_LIMIT);
     position_x_d = nav_derivative_ready ?
@@ -227,7 +227,7 @@ void pid_update_navigation(float current_altitude_cm,
     position_roll_aim = position_x_kp * position_x_err + position_x_integral + position_x_d;
     position_roll_aim = pid_clamp_float(position_roll_aim, -POSITION_ANGLE_LIMIT, POSITION_ANGLE_LIMIT);
 
-    float position_y_err = (float)target_flow_y - (float)flow_y;
+    float position_y_err = ((float)target_flow_y - (float)flow_y) * .1f;
     position_y_integral += position_y_ki * position_y_err * dt_s;
     position_y_integral = pid_clamp_float(position_y_integral, -POSITION_I_LIMIT, POSITION_I_LIMIT);
     position_y_d = nav_derivative_ready ?

@@ -19,7 +19,9 @@ static uint32_t sends, adc_requests, optical_calls, oled_calls, osd_calls;
 static uint32_t calibration_collects, calibration_saves, pauses, resumes;
 static uint16_t servo_pulse;
 static float last_osd_float;
+static double sample_pressure=101325.0;
 static inter_mcu_sensor_data_t latest_packet;
+int16_t qmc_x_raw=100,qmc_y_raw=0,qmc_z_raw=50;
 float qmc5883p_yaw_deg = 10.0f;
 void slave_board_init_interrupts(void) {}
 void slave_board_init(void) { inputs.servo_changed = 1u; }
@@ -69,7 +71,7 @@ int8_t bmp3_set_sensor_settings(uint32_t desired,struct bmp3_settings *settings,
 int8_t bmp3_set_op_mode(struct bmp3_settings *settings,struct bmp3_dev *dev)
 {(void)settings;(void)dev;return BMP3_OK;}
 int8_t bmp3_get_sensor_data(uint8_t selection,struct bmp3_data *data,struct bmp3_dev *dev)
-{(void)selection;(void)dev;data->pressure=101325.0;data->temperature=25.0;return BMP3_OK;}
+{(void)selection;(void)dev;data->pressure=sample_pressure;data->temperature=25.0;return BMP3_OK;}
 void oled_init(void) {}
 void oled_clear(void) {}
 void oled_show_char(uint8_t row,uint8_t column,char character)
@@ -96,7 +98,7 @@ int main(void)
     slave_app_stats_t stats;
     slave_app_init();
     for(i=0u;i<1000u;++i) RunOneMillisecond();
-    assert(sends==20u && adc_requests==20u && osd_calls==17u);
+    assert(sends==20u && adc_requests==20u && osd_calls==29u);
     assert(servo_pulse==SLAVE_SERVO_HIGH_US);
     assert(oled_calls<=64u);
     /* A key bounce shorter than 20ms must not be accepted. */
@@ -106,8 +108,8 @@ int main(void)
     for(i=0u;i<20u;++i) RunOneMillisecond();
     /* Capture calibration once; reads remain on the 50ms task. */
     inputs.calibration_pulse=1u;RunOneMillisecond();
-    for(i=0u;i<9999u;++i) RunOneMillisecond();
-    assert(calibration_saves==0u && calibration_collects==200u);
+    for(i=0u;i<SLAVE_CALIBRATION_MS-1u;++i) RunOneMillisecond();
+    assert(calibration_saves==0u && calibration_collects==SLAVE_CALIBRATION_MS/50u);
     link_busy=1u;
     RunOneMillisecond();
     assert(calibration_saves==0u);
@@ -132,6 +134,13 @@ int main(void)
         assert(last_osd_float == original_yaw);
         qmc5883p_yaw_deg = original_yaw;
     }
+    /* A slow climb and then a hold must not be absorbed into the baseline. */
+    for(i=0;i<5000;i++) {if(i%50u==0u)sample_pressure-=1.0;RunOneMillisecond();}
+    for(i=0;i<5000;i++)RunOneMillisecond();
+    assert(latest_packet.baro_altitude_mm>7500);
+    inputs.key=1u;key_level=0u;
+    for(i=0;i<100;i++)RunOneMillisecond();
+    assert(latest_packet.baro_altitude_mm>-20 && latest_packet.baro_altitude_mm<20);
     puts("slave application tests passed");
     return 0;
 }

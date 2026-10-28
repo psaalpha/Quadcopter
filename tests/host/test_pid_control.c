@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <math.h>
 
 static void AssertYawShortestPathAndMixer(void)
 {
@@ -41,8 +42,8 @@ static void AssertNavigationOutputAndReset(void)
 
     pid_update_navigation(90.0f, 90, 210, 0.05f);
     assert(pid_get_altitude_output() == 5.0f);
-    assert(pid_get_position_roll_target() == 1.0f);
-    assert(pid_get_position_pitch_target() == -1.0f);
+    assert(fabsf(pid_get_position_roll_target() - .1f) < .0001f);
+    assert(fabsf(pid_get_position_pitch_target() + .1f) < .0001f);
 
     /* 帧间隔超过控制器允许值时清空旧修正，避免下一次突跳。 */
     pid_update_navigation(80.0f, 80, 220, 0.20f);

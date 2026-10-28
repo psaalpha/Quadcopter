@@ -1,4 +1,4 @@
-#include "rtos_support.h"
+#include "event_notify.h"
 #include "board_inputs.h"
 static volatile uint8_t key_pending;
 static volatile uint8_t servo_pending;

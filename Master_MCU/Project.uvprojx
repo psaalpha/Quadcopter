@@ -250,7 +250,7 @@
               <IROM>
                 <Type>1</Type>
                 <StartAddress>0x8000000</StartAddress>
-                <Size>0x10000</Size>
+                <Size>0xF800</Size>
               </IROM>
               <XRAM>
                 <Type>0</Type>
@@ -275,7 +275,7 @@
               <OCR_RVCT4>
                 <Type>1</Type>
                 <StartAddress>0x8000000</StartAddress>
-                <Size>0x10000</Size>
+                <Size>0xF800</Size>
               </OCR_RVCT4>
               <OCR_RVCT5>
                 <Type>1</Type>
@@ -662,6 +662,16 @@
               <FileType>5</FileType>
               <FilePath>..\Platform\STM32F1\System\Delay.h</FilePath>
             </File>
+            <File>
+              <FileName>flash_config.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Platform\STM32F1\System\flash_config.c</FilePath>
+            </File>
+            <File>
+              <FileName>flash_config.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Platform\STM32F1\System\flash_config.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -782,6 +792,16 @@
               <FileType>5</FileType>
               <FilePath>Control\attitude_estimator.h</FilePath>
             </File>
+            <File>
+              <FileName>navigation_estimator.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>Control\navigation_estimator.c</FilePath>
+            </File>
+            <File>
+              <FileName>navigation_estimator.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>Control\navigation_estimator.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -832,6 +852,36 @@
               <FileType>5</FileType>
               <FilePath>..\Shared\Protocol\inter_mcu_protocol.h</FilePath>
             </File>
+            <File>
+              <FileName>cv0850.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Protocol\cv0850.c</FilePath>
+            </File>
+            <File>
+              <FileName>cv0850.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Protocol\cv0850.h</FilePath>
+            </File>
+            <File>
+              <FileName>config_journal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Protocol\config_journal.c</FilePath>
+            </File>
+            <File>
+              <FileName>config_journal.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Protocol\config_journal.h</FilePath>
+            </File>
+            <File>
+              <FileName>flight_parameters.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Protocol\flight_parameters.c</FilePath>
+            </File>
+            <File>
+              <FileName>flight_parameters.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Protocol\flight_parameters.h</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -856,6 +906,16 @@
               <FileName>flight_safety.h</FileName>
               <FileType>5</FileType>
               <FilePath>App\flight_safety.h</FilePath>
+            </File>
+            <File>
+              <FileName>flight_controller.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>App\flight_controller.c</FilePath>
+            </File>
+            <File>
+              <FileName>flight_controller.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>App\flight_controller.h</FilePath>
             </File>
           </Files>
         </Group>
@@ -922,17 +982,54 @@
               <FileType>5</FileType>
               <FilePath>..\Shared\Scheduling\periodic_tasks.h</FilePath>
             </File>
+            <File>
+              <FileName>task_health.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Shared\Scheduling\task_health.c</FilePath>
+            </File>
+            <File>
+              <FileName>task_health.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Scheduling\task_health.h</FilePath>
+            </File>
+            <File>
+              <FileName>event_notify.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\Shared\Scheduling\event_notify.h</FilePath>
+            </File>
           </Files>
         </Group>
-        <Group><GroupName>FreeRTOS</GroupName><Files>
-          <File><FileName>tasks.c</FileName><FileType>1</FileType><FilePath>..\Platform\FreeRTOS\Kernel\tasks.c</FilePath></File>
-          <File><FileName>queue.c</FileName><FileType>1</FileType><FilePath>..\Platform\FreeRTOS\Kernel\queue.c</FilePath></File>
-          <File><FileName>list.c</FileName><FileType>1</FileType><FilePath>..\Platform\FreeRTOS\Kernel\list.c</FilePath></File>
-          <File><FileName>port.c</FileName><FileType>1</FileType><FilePath>..\Platform\FreeRTOS\Kernel\portable\RVDS\ARM_CM3\port.c</FilePath></File>
-          <File><FileName>rtos_support.c</FileName><FileType>1</FileType><FilePath>..\Platform\FreeRTOS\Config\rtos_support.c</FilePath></File>
-          <File><FileName>task_health.c</FileName><FileType>1</FileType><FilePath>..\Shared\Scheduling\task_health.c</FilePath></File>
-      </Files></Group>
-    </Groups>
+        <Group>
+          <GroupName>FreeRTOS</GroupName>
+          <Files>
+            <File>
+              <FileName>tasks.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Platform\FreeRTOS\Kernel\tasks.c</FilePath>
+            </File>
+            <File>
+              <FileName>queue.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Platform\FreeRTOS\Kernel\queue.c</FilePath>
+            </File>
+            <File>
+              <FileName>list.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Platform\FreeRTOS\Kernel\list.c</FilePath>
+            </File>
+            <File>
+              <FileName>port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Platform\FreeRTOS\Kernel\portable\RVDS\ARM_CM3\port.c</FilePath>
+            </File>
+            <File>
+              <FileName>rtos_support.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Platform\FreeRTOS\Config\rtos_support.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+      </Groups>
     </Target>
   </Targets>
   <RTE>

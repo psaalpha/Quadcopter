@@ -2,35 +2,43 @@ name: Firmware quality gates
 
 on:
   push:
-    branches:
-      - baremetal
-      - freertos
+    branches: [baremetal, freertos]
   pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   host-quality:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
-      - name: Validate Keil projects and repository layout
+      - name: Validate project files
         run: python tools/validate_project.py
-
-      - name: Configure host tests
-        # 此检查不要求CI有Keil；没有map时明确只验证源码契约。
+      - name: Check pinned RTOS integration
         run: python tools/check_freertos.py
-
-      - name: Configure host CMake tests
+      - name: Configure host tests
         run: cmake -S . -B build/host -DCMAKE_BUILD_TYPE=Release
-
       - name: Build host tests
-        run: cmake --build build/host --config Release
-
+        run: cmake --build build/host --parallel 2
       - name: Run host tests
-        run: ctest --test-dir build/host --build-config Release --output-on-failure
+        run: ctest --test-dir build/host --output-on-failure
+
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ARM toolchain
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y gcc-arm-none-eabi libnewlib-arm-none-eabi
+      - name: Build Master and Slave firmware
+        run: python3 tools/build_gcc.py
+      - name: Keep firmware and memory reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ github.sha }}
+          path: |
+            build/firmware-gcc/summary.json
+            build/firmware-gcc/*/firmware.*

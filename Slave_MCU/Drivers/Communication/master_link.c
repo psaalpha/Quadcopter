@@ -1,4 +1,4 @@
-#include "rtos_support.h"
+#include "event_notify.h"
 #include "stm32f10x.h"
 #include "master_link.h"
 #include <string.h>

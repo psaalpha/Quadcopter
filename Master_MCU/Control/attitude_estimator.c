@@ -7,7 +7,7 @@
 #define MAG_HEADING_CORRECTION_GAIN 0.12f          /* 每次有效磁力计新帧对 estimated_yaw_deg 估计的校正比例 */
 #define ATTITUDE_SAMPLE_PERIOD_S 0.002f           /* TIM2 采样周期：2ms */
 #define GYRO_SCALE 16.4f    /* 陀螺仪 ±2000dps：16.4 LSB/(deg/s) */
-#define ACC_SCALE 1024.0f   /* 加速度计 ±16g：1024 LSB/g */
+#define ACC_SCALE 2048.0f   /* 加速度计 ±16g：2048 LSB/g */
 #define ATTITUDE_PI 3.14159265358979323846f
 #define GYRO_FILTER_ALPHA 0.2f
 
@@ -15,6 +15,45 @@
 static float last_gyro_x_dps = 0.0f;
 static float last_gyro_y_dps = 0.0f;
 static uint8_t mag_heading_initialized = 0u;
+static float heading_reference_offset;
+static float magnetic_reference_sq;
+static uint32_t magnetic_rejections;
+static float gyro_bias[3]={-64.0f,-29.0f,-43.0f};
+static uint8_t calibration_state;
+static unsigned calibration_count,calibration_ticks;
+static float calibration_sum[3];
+static uint8_t gravity_ok;
+static int16_t calibration_min[3],calibration_max[3];
+void attitude_estimator_set_bias(float x,float y,float z)
+{gyro_bias[0]=x;gyro_bias[1]=y;gyro_bias[2]=z;}
+void attitude_estimator_get_bias(float *x,float *y,float *z)
+{*x=gyro_bias[0];*y=gyro_bias[1];*z=gyro_bias[2];}
+void attitude_estimator_calibrate_start(void)
+{calibration_state=1u;calibration_count=0u;calibration_ticks=0u;}
+uint8_t attitude_estimator_calibration_status(void){return calibration_state;}
+uint32_t attitude_estimator_mag_rejections(void){return magnetic_rejections;}
+uint8_t attitude_estimator_gravity_ok(void){return gravity_ok;}
+static void collect_calibration(int16_t gx,int16_t gy,int16_t gz,float acc_sq)
+{
+    int16_t values[3]={gx,gy,gz};unsigned i;
+    if(calibration_state!=1u)return;
+    if(++calibration_ticks>2500u){calibration_state=3u;return;}
+    if(!(acc_sq>.64f && acc_sq<1.44f)){calibration_count=0u;return;}
+    if(fabsf((float)gx-gyro_bias[0])>80.0f || fabsf((float)gy-gyro_bias[1])>80.0f ||
+       fabsf((float)gz-gyro_bias[2])>80.0f || gx<-2000 || gx>2000 ||
+       gy<-2000 || gy>2000 || gz<-2000 || gz>2000) {calibration_count=0u;return;}
+    for(i=0u;i<3u;i++) {
+        if(calibration_count==0u){calibration_sum[i]=0;calibration_min[i]=calibration_max[i]=values[i];}
+        if(values[i]<calibration_min[i])calibration_min[i]=values[i];
+        if(values[i]>calibration_max[i])calibration_max[i]=values[i];
+        if((int32_t)calibration_max[i]-calibration_min[i]>80){calibration_count=0u;return;}
+        calibration_sum[i]+=(float)values[i];
+    }
+    if(++calibration_count>=256u){
+        for(i=0u;i<3u;i++)gyro_bias[i]=calibration_sum[i]/256.0f;
+        calibration_state=2u;
+    }
+}
 
 /* 姿态解算结果 */
 float estimated_roll_deg=0.0f;
@@ -46,30 +85,31 @@ static float attitude_wrap_180(float angle)
 }
 
 /* 姿态解算主函数：读取 MPU6050，并更新 estimated_roll_deg/estimated_pitch_deg/estimated_yaw_deg 与角速度。 */
-void attitude_estimator_update(void)
+uint8_t attitude_estimator_update(void)
 {
     /* 读取 MPU6050 原始数据 */
     int16_t accel_x_raw, accel_y_raw, accel_z_raw, gyro_x_raw, gyro_y_raw, gyro_z_raw;
     mpu6050_get_data(&accel_x_raw, &accel_y_raw, &accel_z_raw, &gyro_x_raw, &gyro_y_raw, &gyro_z_raw);
 
+    if (!mpu6050_last_read_ok()) return 0u;
+
     /* 用加速度计计算静态 estimated_roll_deg/estimated_pitch_deg 参考角 */
     float ax = (float)accel_x_raw / ACC_SCALE;
     float ay = (float)accel_y_raw / ACC_SCALE;
     float az = (float)accel_z_raw / ACC_SCALE;
+    gravity_ok=(uint8_t)(ax*ax+ay*ay+az*az>.64f && ax*ax+ay*ay+az*az<1.44f);
 
 
     float roll_acc = atan2(ay, sqrt(ax*ax + az*az)) * 180/ATTITUDE_PI;
     float pitch_acc = atan2(-ax, sqrt(ay*ay + az*az)) * 180/ATTITUDE_PI;
 
     /* 陀螺仪零漂补偿，数值来自当前硬件标定 */
-    gyro_x_raw += 64;
-    gyro_y_raw += 29;
-    gyro_z_raw +=43;
+    collect_calibration(gyro_x_raw,gyro_y_raw,gyro_z_raw,ax*ax+ay*ay+az*az);
 
     /* 原始值换算为角速度，单位 deg/s */
-     gyro_x_dps = (float)gyro_x_raw / GYRO_SCALE;
-     gyro_y_dps = (float)gyro_y_raw / GYRO_SCALE;
-     gyro_z_dps = (float)gyro_z_raw / GYRO_SCALE;
+     gyro_x_dps = ((float)gyro_x_raw - gyro_bias[0]) / GYRO_SCALE;
+     gyro_y_dps = ((float)gyro_y_raw - gyro_bias[1]) / GYRO_SCALE;
+     gyro_z_dps = ((float)gyro_z_raw - gyro_bias[2]) / GYRO_SCALE;
 	/* 角速度一阶滤波 */
     gyro_x_dps = GYRO_FILTER_ALPHA * last_gyro_x_dps + (1 - GYRO_FILTER_ALPHA) * gyro_x_dps;
     gyro_y_dps = GYRO_FILTER_ALPHA * last_gyro_y_dps + (1 - GYRO_FILTER_ALPHA) * gyro_y_dps;
@@ -82,12 +122,13 @@ void attitude_estimator_update(void)
     /* estimated_roll_deg/estimated_pitch_deg 使用卡尔曼滤波融合陀螺仪与加速度计 */
 	estimated_roll_deg = kalman_update_roll(gyro_x_dps, roll_acc, 0.002f);
 	estimated_pitch_deg = kalman_update_pitch(gyro_y_dps, pitch_acc, 0.002f);
+    return 1u;
 
 }
 
 /* 磁力计来自从控新数据，不在 500Hz IMU 任务内重复使用同一帧。
  * 首帧直接建立绝对航向基准；后续沿最短角误差做小比例校正。
- * 这里只做平面航向修正，尚无倾斜补偿或磁异常检测。
+ * 向量入口先完成倾斜补偿和异常检测，再调用本航向融合入口。
  */
 uint8_t attitude_estimator_apply_mag_heading(float heading_deg)
 {
@@ -112,7 +153,7 @@ void attitude_estimator_get_angles(float *roll, float *pitch, float *yaw)
 {
     *roll = estimated_roll_deg + roll_mount_offset_deg;
     *pitch = estimated_pitch_deg + pitch_mount_offset_deg;
-    *yaw = attitude_wrap_360(estimated_yaw_deg + yaw_mount_offset_deg);
+    *yaw = attitude_wrap_360(estimated_yaw_deg + yaw_mount_offset_deg + heading_reference_offset);
 }
 
 /* 获取三轴角速度。 */
@@ -128,4 +169,32 @@ void attitude_estimator_reset_yaw(void)
 {
     estimated_yaw_deg = 0.0f;
     mag_heading_initialized = 0u;
+    magnetic_reference_sq = 0.0f;
+    heading_reference_offset = 0.0f;
+}
+void attitude_estimator_zero_heading(void)
+{heading_reference_offset=-attitude_wrap_360(estimated_yaw_deg+yaw_mount_offset_deg);}
+
+/* Raw magnetic axes must be aligned with the body axes. Level heading retains
+ * atan2(y,x); roll/pitch de-rotate the measured field before heading fusion. */
+uint8_t attitude_estimator_apply_mag_vector(float x,float y,float z)
+{
+    float norm=x*x+y*y+z*z;
+    float r=(estimated_roll_deg+roll_mount_offset_deg)*0.01745329252f;
+    float p=(estimated_pitch_deg+pitch_mount_offset_deg)*0.01745329252f;
+    float hx,hy,heading;
+    if(!(norm>=1.0f && norm<3.0e9f) ||
+       (magnetic_reference_sq>0 && (norm<magnetic_reference_sq*.25f || norm>magnetic_reference_sq*2.25f))) {
+        magnetic_rejections++;return 2u;
+    }
+    hx=x*cosf(p)+(y*sinf(r)+z*cosf(r))*sinf(p);
+    hy=y*cosf(r)-z*sinf(r);
+    if(!(hx*hx+hy*hy>norm*.01f)){magnetic_rejections++;return 2u;}
+    heading=attitude_wrap_360(atan2f(hy,hx)*57.295779513f);
+    if(mag_heading_initialized && fabsf(attitude_wrap_180(heading-estimated_yaw_deg))>75.0f) {
+        magnetic_rejections++;return 2u;
+    }
+    if(magnetic_reference_sq==0)magnetic_reference_sq=norm;
+    else magnetic_reference_sq+=.01f*(norm-magnetic_reference_sq);
+    return attitude_estimator_apply_mag_heading(heading);
 }

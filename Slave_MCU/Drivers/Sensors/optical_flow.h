@@ -6,11 +6,13 @@
 typedef struct {
     uint16_t distance;           // 测距距离（毫米）
     uint8_t  signal_strength;    // 模块原始信号强度
-    int32_t  flow_x;             // X轴光流（32位有符号，原始值）
-    int32_t  flow_y;             // Y轴光流（32位有符号，原始值）
+    int32_t  flow_x;             // 累计 X 角度积分，1e-4 rad，按32位回绕
+    int32_t  flow_y;             // 累计 Y 角度积分，1e-4 rad，按32位回绕
     uint8_t  data_valid;         // 数据有效标志（1=有效）
     uint8_t  firmware_version;   // 固件版本号
-    uint8_t  checksum_valid;     // 当前未确认校验规则，保持 0
+    uint8_t  checksum_valid;     // 原生求和或 MSPv2 CRC8 已通过
+    uint32_t integration_us;     // 有效积分时间累计，按32位回绕
+    uint16_t epoch;              // 数据中断/失效后递增，通知控制器重新捕获目标
 } optical_flow_data_t;
 
 extern optical_flow_data_t optical_flow_data;
@@ -26,6 +28,7 @@ typedef struct {
     uint32_t distance_frames;
     uint32_t frame_errors;
     uint32_t hardware_errors;
+    uint32_t checksum_errors;
     uint32_t buffer_overruns;
     uint32_t flash_pauses;
 } optical_flow_stats_t;

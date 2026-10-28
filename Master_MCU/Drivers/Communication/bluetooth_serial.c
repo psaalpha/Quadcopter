@@ -1,4 +1,4 @@
-#include "rtos_support.h"
+#include "event_notify.h"
 /**
   ******************************************************************************
   * @file    bluetooth_serial.c
@@ -19,30 +19,12 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
-#include <stdlib.h>
 
 /* ============================================
  * 全局变量
  * ============================================ */
 char    bluetooth_rx_packet[100];
 volatile uint8_t bluetooth_rx_ready;
-
-float bluetooth_pitch_kp  = 0;   /* estimated_pitch_deg Kp */
-float bluetooth_pitch_ki  = 0;   /* estimated_pitch_deg Ki */
-float bluetooth_pitch_kd  = 0;   /* estimated_pitch_deg Kd */
-float bluetooth_midpoint_offset  = 0;   /* 中点偏移 */
-float bluetooth_roll_kp  = 0;   /* estimated_roll_deg Kp  */
-float bluetooth_roll_ki  = 0;   /* estimated_roll_deg Ki  */
-float bluetooth_roll_kd  = 0;   /* estimated_roll_deg Kd  */
-float bluetooth_yaw_kp  = 0;   /* estimated_yaw_deg Kp   */
-float bluetooth_yaw_ki  = 0;   /* estimated_yaw_deg Ki   */
-float bluetooth_yaw_kd  = 0;   /* estimated_yaw_deg Kd   */
-float bluetooth_pitch_angle_kp = 0;   /* estimated_pitch_deg 角度环 Kp */
-float bluetooth_roll_angle_kp = 0;   /* estimated_roll_deg  角度环 Kp */
-float bluetooth_yaw_angle_kp = 0;   /* estimated_yaw_deg   角度环 Kp */
-float bluetooth_pitch_target = 0;   /* estimated_pitch_deg 目标角度 */
-float bluetooth_roll_target = 0;   /* estimated_roll_deg  目标角度 */
-float bluetooth_throttle_percent = 0;
 
 /* ============================================
  * DMA 缓冲区
@@ -54,6 +36,9 @@ float bluetooth_throttle_percent = 0;
 static uint8_t bs_tx_buf[BS_TX_BUF_SIZE];
 static uint8_t bs_rx_dma_buf[BS_RX_DMA_BUF_SIZE] __attribute__((aligned(4)));
 
+static uint32_t tx_started_ms;
+static uint8_t tx_timed;
+static volatile uint32_t tx_errors;
 static volatile uint8_t bs_tx_busy = 0;       /* DMA TX 忙标志（ISR 清零） */
 
 /* RX 解析状态机 */
@@ -162,7 +147,7 @@ static void bluetooth_serial_dma_tx_config(void)
     DMA_Init(DMA1_Channel4, &dma_config);
 
     /* 使能传输完成中断 */
-    DMA_ITConfig(DMA1_Channel4, DMA_IT_TC, ENABLE);
+    DMA_ITConfig(DMA1_Channel4, DMA_IT_TC | DMA_IT_TE, ENABLE);
 }
 
 /* ============================================
@@ -207,6 +192,9 @@ static void bluetooth_serial_dma_rx_config(void)
  * ============================================ */
 void DMA1_Channel4_IRQHandler(void)
 {
+    if (DMA_GetITStatus(DMA1_IT_TE4) != RESET) {
+        DMA_ClearITPendingBit(DMA1_IT_TE4);DMA_Cmd(DMA1_Channel4,DISABLE);bs_tx_busy=0u;tx_errors++;
+    }
     if (DMA_GetITStatus(DMA1_IT_TC4) != RESET)
     {
         DMA_ClearITPendingBit(DMA1_IT_TC4);
@@ -391,175 +379,30 @@ void bluetooth_serial_printf(char *format, ...)
     char string[100];
     va_list arg;
     va_start(arg, format);
-    vsprintf(string, format, arg);
+    vsnprintf(string, sizeof(string), format, arg);
     va_end(arg);
     bluetooth_serial_send_string(string);
 }
 
-/* ============================================
- * 解析蓝牙调参协议
- * ============================================ */
-uint32_t bluetooth_serial_parse_parameters(void)
+int bluetooth_serial_take_command(flight_command_t *command)
 {
-    uint32_t updated_mask = 0;
-
-    if (bluetooth_rx_ready == 1)
-    {
-        char *tag = strtok(bluetooth_rx_packet, ",");
-        if (tag != NULL && strcmp(tag, "slider") == 0)
-        {
-            char *param_name = strtok(NULL, ",");
-            char *param_val  = strtok(NULL, ",");
-            char *extra      = strtok(NULL, ",");
-
-            if (param_name != NULL && param_val != NULL && extra == NULL)
-            {
-                char *end_ptr;
-                float val = (float)strtod(param_val, &end_ptr);
-
-                /* strtod必须完整消费数值字符串，非法文本不能被当作0。 */
-                if (end_ptr != param_val && *end_ptr == '\0')
-                {
-                    if (strcmp(param_name, "PKp") == 0)
-                    {
-                        if (val >= 0.0f && val <= 40.0f) {
-                            bluetooth_pitch_kp = val;
-                            updated_mask |= PID_PARAM_UPDATE_PKP;
-                        }
-                    }
-                    else if (strcmp(param_name, "PKi") == 0)
-                    {
-                        if (val >= 0.0f && val <= 1.0f) {
-                            bluetooth_pitch_ki = val;
-                            updated_mask |= PID_PARAM_UPDATE_PKI;
-                        }
-                    }
-                    else if (strcmp(param_name, "PKd") == 0)
-                    {
-                        if (val >= 0.0f && val <= 5.0f) {
-                            bluetooth_pitch_kd = val;
-                            updated_mask |= PID_PARAM_UPDATE_PKD;
-                        }
-                    }
-                    else if (strcmp(param_name, "Mid") == 0)
-                    {
-                        if (val >= -10.0f && val <= 10.0f) {
-                            bluetooth_midpoint_offset = val;
-                            updated_mask |= PID_PARAM_UPDATE_MID;
-                        }
-                    }
-                    else if (strcmp(param_name, "RKp") == 0)
-                    {
-                        if (val >= 0.0f && val <= 10.0f) {
-                            bluetooth_roll_kp = val;
-                            updated_mask |= PID_PARAM_UPDATE_RKP;
-                        }
-                    }
-                    else if (strcmp(param_name, "RKd") == 0)
-                    {
-                        if (val >= 0.0f && val <= 10.0f) {
-                            bluetooth_roll_kd = val;
-                            updated_mask |= PID_PARAM_UPDATE_RKD;
-                        }
-                    }
-                    else if (strcmp(param_name, "RKi") == 0)
-                    {
-                        if (val >= 0.0f && val <= 10.0f) {
-                            bluetooth_roll_ki = val;
-                            updated_mask |= PID_PARAM_UPDATE_RKI;
-                        }
-                    }
-                    else if (strcmp(param_name, "YKp") == 0)
-                    {
-                        if (val >= 0.0f && val <= 10.0f) {
-                            bluetooth_yaw_kp = val;
-                            updated_mask |= PID_PARAM_UPDATE_YKP;
-                        }
-                    }
-                    else if (strcmp(param_name, "YKd") == 0)
-                    {
-                        if (val >= 0.0f && val <= 10.0f) {
-                            bluetooth_yaw_kd = val;
-                            updated_mask |= PID_PARAM_UPDATE_YKD;
-                        }
-                    }
-                    else if (strcmp(param_name, "YKi") == 0)
-                    {
-                        if (val >= 0.0f && val <= 10.0f) {
-                            bluetooth_yaw_ki = val;
-                            updated_mask |= PID_PARAM_UPDATE_YKI;
-                        }
-                    }
-                    else if (strcmp(param_name, "PAKp") == 0)
-                    {
-                        if (val >= 0.0f && val <= 10.0f) {
-                            bluetooth_pitch_angle_kp = val;
-                            updated_mask |= PID_PARAM_UPDATE_PAKP;
-                        }
-                    }
-                    else if (strcmp(param_name, "RAKp") == 0)
-                    {
-                        if (val >= 0.0f && val <= 10.0f) {
-                            bluetooth_roll_angle_kp = val;
-                            updated_mask |= PID_PARAM_UPDATE_RAKP;
-                        }
-                    }
-                    else if (strcmp(param_name, "YAKp") == 0)
-                    {
-                        if (val >= 0.0f && val <= 10.0f) {
-                            bluetooth_yaw_angle_kp = val;
-                            updated_mask |= PID_PARAM_UPDATE_YAKP;
-                        }
-                    }
-                    else if (strcmp(param_name, "PAIM") == 0)
-                    {
-                        if (val >= -100.0f && val <= 100.0f) {
-                            bluetooth_pitch_target = val;
-                            updated_mask |= PID_PARAM_UPDATE_PAIM;
-                        }
-                    }
-                    else if (strcmp(param_name, "RAIM") == 0)
-                    {
-                        if (val >= -100.0f && val <= 100.0f) {
-                            bluetooth_roll_target = val;
-                            updated_mask |= PID_PARAM_UPDATE_RAIM;
-                        }
-                    }
-                    else if (strcmp(param_name, "Contrl_Speed") == 0)
-                    {
-                        if (val >= 0.0f && val <= 100.0f) {
-                            bluetooth_throttle_percent = val;
-                            updated_mask |= PID_PARAM_UPDATE_CONTROL_SPEED;
-                        }
-                    }
-                }
-            }
-        }
-
-        /* Both frame assembly and parsing run in the main loop. */
-        memset(bluetooth_rx_packet, 0, 100);
-        bluetooth_rx_ready = 0;
-    }
-
-    return updated_mask;
+    int ok;
+    if(!bluetooth_serial_process())return 0;
+    ok=flight_command_parse(bluetooth_rx_packet,command);
+    bluetooth_rx_ready=0u;bluetooth_rx_packet[0]='\0';
+    return ok?1:-1;
 }
-
-/* ============================================
- * PID 参数读接口
- * ============================================ */
-float bluetooth_serial_get_pitch_kp(void)        { return bluetooth_pitch_kp; }
-float bluetooth_serial_get_pitch_ki(void)        { return bluetooth_pitch_ki; }
-float bluetooth_serial_get_pitch_kd(void)        { return bluetooth_pitch_kd; }
-float bluetooth_serial_get_midpoint_offset(void)             { return bluetooth_midpoint_offset; }
-float bluetooth_serial_get_roll_kp(void)         { return bluetooth_roll_kp; }
-float bluetooth_serial_get_roll_ki(void)         { return bluetooth_roll_ki; }
-float bluetooth_serial_get_roll_kd(void)         { return bluetooth_roll_kd; }
-float bluetooth_serial_get_yaw_kp(void)          { return bluetooth_yaw_kp; }
-float bluetooth_serial_get_yaw_ki(void)          { return bluetooth_yaw_ki; }
-float bluetooth_serial_get_yaw_kd(void)          { return bluetooth_yaw_kd; }
-float bluetooth_serial_get_roll_target(void)        { return bluetooth_roll_target; }
-float bluetooth_serial_get_pitch_target(void)       { return bluetooth_pitch_target; }
-uint8_t bluetooth_serial_get_base_duty(void)     { return bluetooth_throttle_percent; }
-float bluetooth_serial_get_pitch_angle_kp(void)  { return bluetooth_pitch_angle_kp; }
-float bluetooth_serial_get_roll_angle_kp(void)   { return bluetooth_roll_angle_kp; }
-float bluetooth_serial_get_yaw_angle_kp(void)    { return bluetooth_yaw_angle_kp; }
+uint8_t bluetooth_serial_try_send(uint8_t *data,uint16_t length)
+{
+    if(!length || length>BS_TX_BUF_SIZE || bs_tx_busy)return 0u;
+    bluetooth_serial_send_dma(data,length);tx_timed=0u;return 1u;
+}
+void bluetooth_serial_service_tx(uint32_t now_ms)
+{
+    if(!bs_tx_busy){tx_timed=0u;return;}
+    if(!tx_timed){tx_started_ms=now_ms;tx_timed=1u;}
+    if((uint32_t)(now_ms-tx_started_ms)>=20u) {
+        DMA_Cmd(DMA1_Channel4,DISABLE);DMA_ClearFlag(DMA1_FLAG_GL4);
+        bs_tx_busy=0u;tx_timed=0u;tx_errors++;
+    }
+}

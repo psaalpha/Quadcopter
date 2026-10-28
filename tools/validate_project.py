@@ -38,6 +38,15 @@ REQUIRED_FILES = (
     "Slave_MCU/Drivers/Sensors/BMP390/bmp3_defs.h",
     "Master_MCU/App/app_scheduler.c",
     "Master_MCU/App/flight_safety.c",
+    "Master_MCU/App/flight_controller.c",
+    "Master_MCU/Control/navigation_estimator.c",
+    "Shared/Protocol/cv0850.c",
+    "Shared/Protocol/flight_parameters.c",
+    "Shared/Protocol/config_journal.c",
+    "Platform/STM32F1/System/flash_config.c",
+    "Platform/STM32F1/GCC/startup_stm32f103.S",
+    "Platform/STM32F1/GCC/stm32f103.ld",
+    "tools/build_gcc.py",
     "Master_MCU/BSP/board_config.h",
     "Master_MCU/BSP/control_timers.c",
     "Shared/Drivers/dma_rx.c",
@@ -144,11 +153,11 @@ def validate_keil_project(project: Path) -> list[str]:
                    r"..\Shared\Scheduling\periodic_tasks.c"):
         if shared not in project_text:
             errors.append(f"{project.relative_to(REPOSITORY_ROOT)} does not compile {shared}")
-    if project.parent.name == "Slave_MCU":
+    if project.parent.name in ("Master_MCU", "Slave_MCU"):
         for node in root.iter():
             if (node.tag in ("IROM", "OCR_RVCT4") and int(node.findtext("StartAddress") or "0", 0) == 0x08000000 and
-                    int(node.findtext("Size") or "0", 0) > 0xFC00):
-                errors.append("Slave IROM must reserve calibration flash at 0x0800FC00")
+                    int(node.findtext("Size") or "0", 0) > 0xF800):
+                errors.append("IROM must reserve configuration flash at 0x0800F800")
     return errors
 
 
@@ -223,7 +232,7 @@ def main() -> int:
         return 1
 
     print("Project validation passed:")
-    print("  - required engineering files are present")
+    print("  - required project files are present")
     print("  - obsolete and duplicate directories are absent")
     print("  - both Keil projects and option file lists agree")
     print("  - all Keil source and include references exist")

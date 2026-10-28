@@ -8,7 +8,9 @@ typedef enum
     FLIGHT_SAFETY_STARTUP_LOCK = 0,
     FLIGHT_SAFETY_ACTIVE,
     FLIGHT_SAFETY_LINK_LOSS,
-    FLIGHT_SAFETY_RECOVERY_LOCK
+    FLIGHT_SAFETY_RECOVERY_LOCK,
+    FLIGHT_SAFETY_DISARMED,
+    FLIGHT_SAFETY_SENSOR_FAULT
 } flight_safety_state_t;
 
 typedef struct
@@ -17,7 +19,11 @@ typedef struct
     uint32_t last_valid_rc_tick;
     uint32_t failsafe_count;
     uint8_t link_ok;
+    uint8_t arm_low_seen;
 } flight_safety_context_t;
+
+void flight_safety_latch_fault(flight_safety_context_t *context);
+void flight_safety_disarm(flight_safety_context_t *context);
 
 void flight_safety_init(flight_safety_context_t *context);
 
@@ -25,7 +31,8 @@ flight_safety_state_t flight_safety_on_valid_rc_frame(
     flight_safety_context_t *context,
     uint32_t now_tick,
     uint8_t throttle_percent,
-    uint8_t low_throttle_threshold);
+    uint8_t low_throttle_threshold,
+    uint8_t arm_switch, uint8_t preflight_ok);
 
 uint8_t flight_safety_check_timeout(
     flight_safety_context_t *context,

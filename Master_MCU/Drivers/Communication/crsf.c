@@ -11,7 +11,7 @@
 
 #include "crsf.h"
 #include "dma_rx.h"
-#include "rtos_support.h"
+#include "event_notify.h"
 #include <string.h>
 
 /* 协议和串口配置常量 */

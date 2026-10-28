@@ -20,6 +20,9 @@ typedef struct {
     uint32_t timestamp_ms;    // 从控采样时间戳
     int32_t  pressure_pa;     // 气压 (Pa)
     int16_t  temperature_centi_c; // 温度 (0.01°C)
+    int16_t mag_x, mag_y, mag_z;
+    uint32_t flow_integration_us;
+    uint16_t flow_epoch;
     uint16_t battery_mv;      // 从控测得的电池电压 (mV)
     volatile uint32_t frames_received;
     volatile uint32_t crc_errors;

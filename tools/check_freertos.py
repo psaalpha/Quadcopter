@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Check RTOS integration contracts and, when present, Keil link sizes."""
+"""Check pinned RTOS sources, interrupt rules and exception ownership."""
 from pathlib import Path
 import hashlib
-import json
 import re
 import sys
 import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[1]
 
 def main():
-    errors, sizes = [], {}
+    errors = []
     kernel = ROOT / 'Platform/FreeRTOS/Kernel'
     for line in (kernel.parent / 'UPSTREAM.sha256').read_text().splitlines():
         expected, path = line.split('  ', 1)
@@ -36,26 +35,6 @@ def main():
         exceptions = (ROOT / board / 'Core/stm32f10x_it.c').read_text(encoding='utf-8-sig')
         if re.search(r'void\s+(SVC|PendSV|SysTick)_Handler\s*\(', exceptions):
             errors.append(board + ': exception stub conflicts with official port')
-        link_map = ROOT / board / 'Listings/Project.map'
-        build_log = ROOT / board / 'Objects/engineering_build.log'
-        if link_map.exists() and build_log.exists():
-            log = build_log.read_text(errors='replace')
-            if '0 Error(s), 0 Warning(s)' not in log:
-                errors.append(board + ': build log does not confirm success')
-            data = link_map.read_text(errors='replace')
-            ram = int(re.search(r'Total RW\s+Size.*?\s(\d+)\s+\(', data).group(1))
-            rom = int(re.search(r'Total ROM Size.*?\s(\d+)\s+\(', data).group(1))
-            ro = int(re.search(r'Total RO\s+Size.*?\s(\d+)\s+\(', data).group(1))
-            raw = int(re.search(r'Load Region LR_IROM1 .*?Size: (0x[\da-f]+)', data).group(1), 16)
-            limit = 0xfc00 if board == 'Slave_MCU' else 0x10000
-            sizes[board] = dict(ro_bytes=ro, rom_compressed_bytes=rom, load_region_uncompressed_bytes=raw,
-                                ram_bytes=ram, physical_flash_limit_bytes=limit,
-                                conservative_32k_headroom_bytes=32768-raw)
-            if ram > 20480 or raw > limit or raw > 32768:
-                errors.append(board + ': memory budget exceeded')
-            for vector in ['SVC_Handler', 'PendSV_Handler', 'SysTick_Handler']:
-                if not re.search(r'^\s+' + vector + r'\s+.*?port\.o', data, re.M):
-                    errors.append(board + ': vector not provided by port.o: ' + vector)
     delay = (ROOT / 'Platform/STM32F1/System/Delay.c').read_text(encoding='utf-8')
     code = re.sub(r'/\*.*?\*/|//[^\n]*', '', delay, flags=re.S)
     if 'SysTick->' in code:
@@ -64,9 +43,7 @@ def main():
         print('\n'.join(errors))
         return 1
     print('FreeRTOS source, IRQ, static allocation, exception ownership checks passed.')
-    print(json.dumps(sizes, indent=2))
-    if not sizes:
-        print('Keil maps absent: firmware size/link success NOT checked on this machine.')
+    print('Run tools/build_gcc.py for actual firmware linking, vectors and memory budgets.')
     return 0
 
 if __name__ == '__main__':

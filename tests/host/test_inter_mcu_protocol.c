@@ -24,6 +24,8 @@ static void AssertRoundTrip(void)
     source.flow_distance_mm = 4321u;
     source.flow_quality = 97u;
     source.battery_mv = 11850u;
+    source.mag_x=-1000;source.mag_y=2000;source.mag_z=-3000;
+    source.flow_integration_us=0xfffffff0u;source.flow_epoch=321u;
 
     assert(inter_mcu_encode_sensor_frame(
                &source, frame, (uint16_t)sizeof(frame)) == 1u);
@@ -56,6 +58,8 @@ static void AssertRoundTrip(void)
     assert(decoded.flow_distance_mm == source.flow_distance_mm);
     assert(decoded.flow_quality == source.flow_quality);
     assert(decoded.battery_mv == source.battery_mv);
+    assert(decoded.mag_x==-1000 && decoded.mag_y==2000 && decoded.mag_z==-3000);
+    assert(decoded.flow_integration_us==source.flow_integration_us && decoded.flow_epoch==321u);
 }
 
 static void AssertValidationFailures(void)

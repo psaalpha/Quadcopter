@@ -17,7 +17,7 @@ function Invoke-FirmwareBuild {
     $workingDirectory = Join-Path $repositoryRoot $TargetDirectory
     $projectPath = Join-Path $workingDirectory "Project.uvprojx"
     $objectsDirectory = Join-Path $workingDirectory "Objects"
-    $logPath = Join-Path $objectsDirectory "engineering_build.log"
+    $logPath = Join-Path $objectsDirectory "firmware_build.log"
 
     if (-not (Test-Path -LiteralPath $projectPath -PathType Leaf)) {
         throw "Keil project not found: $projectPath"
@@ -37,7 +37,7 @@ function Invoke-FirmwareBuild {
             "Project.uvprojx",
             "-j0",
             "-o",
-            "Objects\engineering_build.log"
+            "Objects\firmware_build.log"
         ) `
         -WorkingDirectory $workingDirectory `
         -WindowStyle Hidden | Out-Null

@@ -9,10 +9,10 @@ extern "C" {
 
 #define INTER_MCU_MAGIC_0              0xA5u
 #define INTER_MCU_MAGIC_1              0x5Au
-#define INTER_MCU_PROTOCOL_VERSION     1u
+#define INTER_MCU_PROTOCOL_VERSION     2u
 #define INTER_MCU_MESSAGE_SENSOR_DATA  1u
-#define INTER_MCU_SENSOR_PAYLOAD_SIZE  32u
-#define INTER_MCU_FRAME_SIZE           41u
+#define INTER_MCU_SENSOR_PAYLOAD_SIZE  44u
+#define INTER_MCU_FRAME_SIZE           53u
 
 #define INTER_MCU_SENSOR_FLAG_BARO_VALID       (1u << 0)
 #define INTER_MCU_SENSOR_FLAG_MAG_VALID        (1u << 1)
@@ -20,6 +20,8 @@ extern "C" {
 #define INTER_MCU_SENSOR_FLAG_LOW_BATTERY      (1u << 3)
 #define INTER_MCU_SENSOR_FLAG_MAG_CALIBRATING  (1u << 4)
 #define INTER_MCU_SENSOR_FLAG_BATTERY_VALID    (1u << 5)
+#define INTER_MCU_SENSOR_FLAG_MAG_RAW_VALID    (1u << 6)
+#define INTER_MCU_SENSOR_FLAG_FLOW_CHECKED     (1u << 7)
 
 typedef struct
 {
@@ -35,6 +37,9 @@ typedef struct
     uint16_t flow_distance_mm;
     uint8_t  flow_quality;
     uint16_t battery_mv;
+    int16_t mag_x, mag_y, mag_z;
+    uint32_t flow_integration_us;
+    uint16_t flow_epoch;
 } inter_mcu_sensor_data_t;
 
 typedef enum

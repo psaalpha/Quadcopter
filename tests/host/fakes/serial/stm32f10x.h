@@ -47,6 +47,7 @@ typedef struct {uint32_t TIM_OCMode, TIM_OCPolarity, TIM_OutputState, TIM_Pulse;
 #define DMA1_FLAG_TC5 (1u << 3)
 #define DMA1_FLAG_GL4 (1u << 4)
 #define DMA1_IT_TC4 DMA1_FLAG_GL4
+#define DMA1_IT_TE4 (1u << 20)
 uint32_t __get_PRIMASK(void);
 void __disable_irq(void);
 void __set_PRIMASK(uint32_t mask);
